@@ -10,6 +10,33 @@
 
 using namespace owl;
 
+//Material from OBJ read
+struct Material
+{
+    vec3f ambient       = { 0, 0, 0 }; // Ka
+    vec3f diffuse       = { 0, 0, 0 }; // Kd
+    vec3f specular      = { 0, 0, 0 }; // Ks
+    vec3f transmittance = { 0, 0, 0 }; // Kt
+    vec3f emission      = { 0, 0, 0 }; // Ke
+    float reflection_coefficient = 0.0f;
+    float  shininess     = 1.0f;        // Ns
+    float  ior           = 1.0f;        // Ni
+    float  dissolve      = 1.0f;        // d
+    int    illum         = 0;           // illum
+};
+
+struct ObjTriangleGeomData
+{
+    vec3i* indices;
+    vec3f* vertices;
+
+    vec3i* vertex_normals_indices;
+    vec3f* vertex_normals;
+
+    Material* materials;
+    int* materials_indices;
+};
+
 struct Sphere
 {
     vec3f center;
@@ -27,10 +54,21 @@ struct LambertianSpheresGeometryData
     LambertianSphere* primitives;
 };
 
-struct TriangleGeomData
+struct DiffuseTriangleGeomData
 {
     vec3i* indices;
     vec3f* vertices;
+
+    vec3f albedo;
+};
+
+struct MetalTriangleGeomData
+{
+    vec3i* indices;
+    vec3f* vertices;
+
+    vec3f albedo;
+    float roughness;
 };
 
 struct RayGenData
@@ -59,18 +97,20 @@ enum ScatterState
     MISSED  //Hit the sky
 };
 
+struct ScatterInfo
+{
+    vec3f origin, target;
+
+    vec3f attenuation;
+
+    ScatterState state;
+};
+
 struct PerRayData
 {
     owl::common::LCG<4> random;
 
-    struct
-    {
-        vec3f origin, target;
-
-        ScatterState state;
-    } scatter;
-
-    vec3f color;
+    ScatterInfo scatter;
 };
 
 struct MissProgData

@@ -18,9 +18,11 @@ embed_ptx(
 )
 
 add_executable(RTioW main.cpp
+                     objUtils.cpp
                      viewer.cpp
 
                      materials.h
+                     objUtils.h
                      shader.h
                      viewer.h)
 
@@ -31,5 +33,7 @@ target_link_libraries(RTioW
     owl_viewer
     stb_image
 )
+
+include_directories(".")
 
 set_property(TARGET RTioW PROPERTY CXX_STANDARD 17)

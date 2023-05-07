@@ -16,6 +16,9 @@ class Viewer : public viewer::OWLViewer
 public:
     Viewer();
 
+    OWLGroup create_floor_group();
+    OWLGroup create_obj_group(const char* obj_file_path);
+
     void render() override;
 
     void resize(const vec2i& new_size) override;

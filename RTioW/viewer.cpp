@@ -1,3 +1,4 @@
+#include "objUtils.h"
 #include "shader.h"
 #include "viewer.h"
 
@@ -20,18 +21,139 @@ std::vector<LambertianSphere> create_lambertian_spheres()
     return spheres;
 }
 
-vec3i plane_indices[] = {
-    { 0, 1, 2 },
-    { 1, 3, 2 }
-};
+OWLGroup Viewer::create_floor_group()
+{
+    vec3i floor_indices[] = {
+        { 0, 1, 2 },
+        { 1, 3, 2 }
+    };
 
-vec3f plane_vertices[] = {
-    vec3f(-100.0f, -1.0f, 100.0f),
-    vec3f(100.0f, -1.0f, 100.0f),
-    vec3f(-100.0f, -1.0f, -100.0f),
+    vec3f floor_vertices[] = {
+        vec3f(-100.0f, -1.0f, 100.0f),
+        vec3f(100.0f, -1.0f, 100.0f),
+        vec3f(-100.0f, -1.0f, -100.0f),
 
-    vec3f(100.0f, -1.0f, -100.0f),
-};
+        vec3f(100.0f, -1.0f, -100.0f),
+    };
+
+    OWLVarDecl floor_vars[] = {
+        { "indices",    OWL_BUFPTR, OWL_OFFSETOF(MetalTriangleGeomData, indices)},
+        { "vertices",   OWL_BUFPTR, OWL_OFFSETOF(MetalTriangleGeomData, vertices)},
+        { "albedo",     OWL_FLOAT3, OWL_OFFSETOF(MetalTriangleGeomData, albedo)},
+        { "roughness",  OWL_FLOAT,  OWL_OFFSETOF(MetalTriangleGeomData, roughness)},
+        { /* sentinel */ }
+    };
+
+    OWLBuffer floor_indices_buffer = owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(vec3i), 2, floor_indices);
+    OWLBuffer flooor_vertices_buffer = owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(vec3f), 4, floor_vertices);
+
+    OWLGeomType floor_geometry_type = owlGeomTypeCreate(m_owl_context, OWL_TRIANGLES, sizeof(MetalTriangleGeomData), floor_vars, -1);
+    OWLGeom floor_geom = owlGeomCreate(m_owl_context, floor_geometry_type);
+
+    owlGeomTypeSetClosestHit(floor_geometry_type, 0, m_module, "metal_triangles");
+    owlTrianglesSetIndices(floor_geom, floor_indices_buffer, 2, sizeof(vec3i), 0);
+    owlTrianglesSetVertices(floor_geom, flooor_vertices_buffer, 4, sizeof(vec3f), 0);
+
+    owlGeomSetBuffer(floor_geom, "indices", floor_indices_buffer);
+    owlGeomSetBuffer(floor_geom, "vertices", flooor_vertices_buffer);
+    owlGeomSet3f(floor_geom, "albedo", 0.9f, 0.9f, 0.9f);
+    owlGeomSet1f(floor_geom, "roughness", 0.025f);
+
+    OWLGroup floor_group = owlTrianglesGeomGroupCreate(m_owl_context, 1, &floor_geom);
+
+    return floor_group;
+}
+
+OWLGroup Viewer::create_obj_group(const char* obj_file_path)
+{
+    std::vector<vec3i> indices;
+    std::vector<vec3f> vertices;
+    std::vector<vec3f> vertex_normals;
+    std::vector<Material> materials;
+    std::vector<int> materials_indices;
+
+
+    OBJUtils::read_obj(obj_file_path, indices, vertices, vertex_normals, materials, materials_indices);
+
+//    OWLVarDecl obj_triangles_vars[] = {
+//        { "indices",                OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, indices) },
+//        { "vertices",               OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, vertices) },
+//        { "vertex_normals_indices", OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, vertex_normals_indices) },
+//        { "vertex_normals",         OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, vertex_normals) },
+//        { "materials_indices",      OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, materials_indices) },
+//        { "materials",              OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, materials) },
+//        { /* sentinel */}
+//    };
+
+//    OWLGeomType obj_geom_type = owlGeomTypeCreate(m_owl_context, OWL_TRIANGLES, sizeof(ObjTriangleGeomData), obj_triangles_vars, -1);
+//    owlGeomTypeSetClosestHit(obj_geom_type, 0, m_module, "obj_triangle");
+
+//    OWLGeom obj_geom = owlGeomCreate(m_owl_context, obj_geom_type);
+
+//    OWLBuffer indices_buffer =              owlDeviceBufferCreate(m_owl_context, OWL_INT3,                  indices.size(),             indices.data());
+//    OWLBuffer vertices_buffer =             owlDeviceBufferCreate(m_owl_context, OWL_FLOAT3,                vertices.size(),            vertices.data());
+//    OWLBuffer vertex_normals_buffer =       owlDeviceBufferCreate(m_owl_context, OWL_FLOAT3,                vertex_normals.size(),      vertex_normals.data());
+//    OWLBuffer vertex_normals_indices_buffer = owlDeviceBufferCreate(m_owl_context, OWL_INT3,                indices.size(),             indices.data());
+//    OWLBuffer materials_buffer =            owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(Material),   materials.size(),           materials.data());
+//    OWLBuffer materials_indices_buffer =    owlDeviceBufferCreate(m_owl_context, OWL_INT,                   materials_indices.size(),   materials_indices.data());
+//    owlTrianglesSetIndices (obj_geom, indices_buffer,  indices.size(),  sizeof(vec3i), 0);
+//    owlTrianglesSetVertices(obj_geom, vertices_buffer, vertices.size(), sizeof(vec3f), 0);
+
+//    owlGeomSetBuffer(obj_geom, "indices", indices_buffer);
+//    owlGeomSetBuffer(obj_geom, "vertices", vertices_buffer);
+//    owlGeomSetBuffer(obj_geom, "vertex_normals_indices", vertex_normals_indices_buffer);//The vertex normals indices are exactly the same as the indices
+//    owlGeomSetBuffer(obj_geom, "vertex_normals", vertex_normals_buffer);
+//    owlGeomSetBuffer(obj_geom, "materials", materials_buffer);
+//    owlGeomSetBuffer(obj_geom, "materials_indices", materials_indices_buffer);
+
+//    OWLGroup obj_group = owlTrianglesGeomGroupCreate(m_owl_context, 1, &obj_geom);
+
+//    return obj_group;
+
+    OWLVarDecl triangleGeometryVars[] = {
+        { "indices",            OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, indices)},
+        { "vertices",           OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, vertices)},
+        { "vertex_normals",            OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, vertex_normals)},
+        { "vertex_normals_indices",    OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, vertex_normals_indices)},
+        { "materials",          OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, materials)},
+        { "materials_indices",  OWL_BUFPTR, OWL_OFFSETOF(ObjTriangleGeomData, materials_indices)},
+        { /* sentinel */ }
+    };
+
+    OWLGeomType triangle_geometry_type = owlGeomTypeCreate(m_owl_context, OWL_TRIANGLES, sizeof(ObjTriangleGeomData), triangleGeometryVars, -1);
+    owlGeomTypeSetClosestHit(triangle_geometry_type, 0, m_module, "obj_triangle");
+
+    OWLBuffer triangles_indices_buffer = owlDeviceBufferCreate(m_owl_context,               OWL_INT3, indices.size(), indices.data());
+    OWLBuffer triangles_vertices_buffer = owlDeviceBufferCreate(m_owl_context,              OWL_FLOAT3, vertices.size(), vertices.data());
+    OWLBuffer triangles_normals_buffer;
+    OWLBuffer triangles_normals_indices_buffer;
+    if (vertex_normals.size() > 0)
+    {
+        triangles_normals_indices_buffer = owlDeviceBufferCreate(m_owl_context,       OWL_INT3, indices.size(), indices.data());
+        triangles_normals_buffer = owlDeviceBufferCreate(m_owl_context,               OWL_FLOAT3, vertex_normals.size(), vertex_normals.data());
+    }
+    OWLBuffer triangles_materials_buffer = owlDeviceBufferCreate(m_owl_context,             OWL_USER_TYPE(materials[0]), materials.size(), materials.data());
+    OWLBuffer triangles_materials_indices_buffers = owlDeviceBufferCreate(m_owl_context,    OWL_INT, materials_indices.size(), materials_indices.data());
+
+    OWLGeom triangle_geom = owlGeomCreate(m_owl_context, triangle_geometry_type);
+
+    owlTrianglesSetIndices(triangle_geom, triangles_indices_buffer, indices.size(), sizeof(vec3i), 0);
+    owlTrianglesSetVertices(triangle_geom, triangles_vertices_buffer, vertices.size(), sizeof(vec3f), 0);
+
+    owlGeomSetBuffer(triangle_geom, "indices", triangles_indices_buffer);
+    owlGeomSetBuffer(triangle_geom, "vertices", triangles_vertices_buffer);
+    if (vertex_normals.size() > 0)
+    {
+        owlGeomSetBuffer(triangle_geom, "vertex_normals", triangles_normals_buffer);
+        owlGeomSetBuffer(triangle_geom, "vertex_normals_indices", triangles_normals_indices_buffer);
+    }
+    owlGeomSetBuffer(triangle_geom, "materials", triangles_materials_buffer);
+    owlGeomSetBuffer(triangle_geom, "materials_indices", triangles_materials_indices_buffers);
+
+    OWLGroup triangle_group = owlTrianglesGeomGroupCreate(m_owl_context, 1, &triangle_geom);
+
+    return triangle_group;
+}
 
 Viewer::Viewer()
 {
@@ -63,34 +185,19 @@ Viewer::Viewer()
         lambertian_sphere_geometry
     };
 
-    OWLVarDecl triangle_vars[] = {
-        { "indices", OWL_BUFPTR, OWL_OFFSETOF(TriangleGeomData, indices)},
-        { "vertices", OWL_BUFPTR, OWL_OFFSETOF(TriangleGeomData, vertices)},
-        { /* sentinel */ }
-    };
+    OWLGroup floor_group = create_floor_group();
+    owlGroupBuildAccel(floor_group);
 
-    OWLBuffer triangle_indices_buffer = owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(vec3i), 2, plane_indices);
-    OWLBuffer triangle_vertices_buffer = owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(vec3f), 4, plane_vertices);
-
-    OWLGeomType triangle_geometry_type = owlGeomTypeCreate(m_owl_context, OWL_TRIANGLES, sizeof(TriangleGeomData), triangle_vars, -1);
-    OWLGeom triangle_geom = owlGeomCreate(m_owl_context, triangle_geometry_type);
-
-    owlGeomTypeSetClosestHit(triangle_geometry_type, 0, m_module, "triangle");
-    owlTrianglesSetIndices(triangle_geom, triangle_indices_buffer, 2, sizeof(vec3i), 0);
-    owlTrianglesSetVertices(triangle_geom, triangle_vertices_buffer, 4, sizeof(vec3f), 0);
-
-    owlGeomSetBuffer(triangle_geom, "indices", triangle_indices_buffer);
-    owlGeomSetBuffer(triangle_geom, "vertices", triangle_vertices_buffer);
-
-    OWLGroup triangle_group = owlTrianglesGeomGroupCreate(m_owl_context, 1, &triangle_geom);
-    owlGroupBuildAccel(triangle_group);
+    OWLGroup obj_group = create_obj_group("../../common_data/stanford_bunny.obj");
+    owlGroupBuildAccel(obj_group);
 
     OWLGroup spheres_group = owlUserGeomGroupCreate(m_owl_context, 1, spheres_geoms);
     owlGroupBuildAccel(spheres_group);
 
-    OWLGroup scene = owlInstanceGroupCreate(m_owl_context, 2);
+    OWLGroup scene = owlInstanceGroupCreate(m_owl_context, 3);
     owlInstanceGroupSetChild(scene, 0, spheres_group);
-    owlInstanceGroupSetChild(scene, 1, triangle_group);
+    owlInstanceGroupSetChild(scene, 1, floor_group);
+    owlInstanceGroupSetChild(scene, 2, obj_group);
     owlGroupBuildAccel(scene);
 
     OWLVarDecl ray_gen_variables[] = {
@@ -126,7 +233,7 @@ Viewer::Viewer()
 
     OWLMissProg miss_program = owlMissProgCreate(m_owl_context, m_module, "miss", sizeof(MissProgData), miss_prog_vars, -1);
 
-    load_skysphere("../../common_data/industrial_sunset_puresky.jpg");
+    load_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
     OWLTexture skysphere_tex = owlTexture2DCreate(m_owl_context, OWL_TEXEL_FORMAT_RGBA8, m_skysphere_width, m_skysphere_height, m_skysphere.data());
     owlMissProgSetTexture(miss_program, "skysphere", skysphere_tex);
 
@@ -163,8 +270,8 @@ void Viewer::cameraChanged()
     cudaMallocManaged(&m_accumulation_buffer, sizeof(vec3f) * fbSize.x * fbSize.y);
 
     owlRayGenSet2i(m_ray_gen_program,   "frame_buffer_size",   fbSize.x, fbSize.y);
-    owlRayGenSet1ul(m_ray_gen_program,  "frame_buffer",       (uint64_t)fbPointer);
-    owlRayGenSet1ul(m_ray_gen_program,  "accumulation_buffer",  (uint64_t)m_accumulation_buffer);
+    owlRayGenSet1ul(m_ray_gen_program,  "frame_buffer",        (uint64_t)fbPointer);
+    owlRayGenSet1ul(m_ray_gen_program,  "accumulation_buffer", (uint64_t)m_accumulation_buffer);
     owlRayGenSet3f(m_ray_gen_program,   "camera.position",     (const owl3f&) position);
     owlRayGenSet3f(m_ray_gen_program,   "camera.direction_00", (const owl3f&) camera_direction_00);
     owlRayGenSet3f(m_ray_gen_program,   "camera.direction_dx", (const owl3f&) camera_dx);
