@@ -17,9 +17,9 @@ int main(int ac, char **av)
     //rt_scene.load_obj_into_scene("data/stanford_bunny.obj");
     //rt_scene.load_obj_into_scene("D:\\Bureau\\Repos\\M1\\m-1-synthese\\tp2\\data\\xyzrgb_dragon.obj");
     //rt_scene.load_obj_into_scene("D:\\Bureau\\Repos\\M1\\m-1-synthese\\tp2\\data\\burger_tom300.obj");
-    rt_scene.load_obj_into_scene("data/plan.obj");
+    rt_scene.load_obj_into_scene("../../common_data/grass_medium_01_8k.obj");
 
-    rt_scene.load_skysphere("data/AllSkyFree_Sky_EpicGloriousPink_Equirect.png");
+    rt_scene.load_skysphere("../../common_data/AllSkyFree_Sky_EpicGloriousPink_Equirect.png");
     //rt_scene.load_skysphere("D:/Bureau/AllSkyFree_Sky_ClearBlueSky_Equirect.png");
 
     Viewer viewer(rt_scene);

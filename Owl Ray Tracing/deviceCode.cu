@@ -26,11 +26,13 @@ extern "C" __global__ void __raygen__simpleRayGen()
                     pixel_id.y + ray_gen_data.fb_size.y * ray_gen_data.frame_number);
 
     vec3f ray_origin = ray_gen_data.camera.position;
-    vec3f ray_direction = normalize(ray_gen_data.camera.direction_00 + ray_gen_data.camera.du * (pixel_id.x + prd.random()) / ray_gen_data.fb_size.x + ray_gen_data.camera.dv * (pixel_id.y + prd.random()) / ray_gen_data.fb_size.y);
+    vec3f ray_direction = normalize(ray_gen_data.camera.direction_00
+                                  + ray_gen_data.camera.du * (pixel_id.x + prd.random()) / static_cast<float>(ray_gen_data.fb_size.x)
+                                  + ray_gen_data.camera.dv * (pixel_id.y + prd.random()) / static_cast<float>(ray_gen_data.fb_size.y));
 
-    vec3f pixel_color = 0;
+    vec3f pixel_color = 0.0f;
 
-    Ray ray(ray_origin, ray_direction, 1.0e-3, 1.0e10);
+    Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);
 
     for (int i = 0; i < MAX_RECURSION_DEPTH; i++)
     {
@@ -57,12 +59,8 @@ extern "C" __global__ void __raygen__simpleRayGen()
     else
         ray_gen_data.frame_accumulation_buffer[pixel_index] += pixel_color;
 
-    ray_gen_data.frame_buffer_ptr[pixel_index] = owl::make_rgba(ray_gen_data.frame_accumulation_buffer[pixel_index] / ray_gen_data.frame_number);
+    ray_gen_data.frame_buffer_ptr[pixel_index] = owl::make_rgba(ray_gen_data.frame_accumulation_buffer[pixel_index] / static_cast<float>(ray_gen_data.frame_number));
 }
-
-
-// Includes CUDA
-#include <cuda_runtime.h>
 
 OPTIX_CLOSEST_HIT_PROGRAM(Triangle)()
 {
@@ -75,9 +73,21 @@ OPTIX_CLOSEST_HIT_PROGRAM(Triangle)()
     float2 uv_coordinates = optixGetTriangleBarycentrics();
     float u = uv_coordinates.x, v = uv_coordinates.y;
 
-    const vec3f normal = normalize(u * prog_data.normals[prog_data.normals_indices[primitive_index].x]
-                                 + v * prog_data.normals[prog_data.normals_indices[primitive_index].y]
-                                 + (1 - u - v) * prog_data.normals[prog_data.normals_indices[primitive_index].z]);
+    vec3f normal;
+    if (prog_data.normals != nullptr)
+    {
+        normal = normalize(u * prog_data.normals[prog_data.normals_indices[primitive_index].y]
+                         + v * prog_data.normals[prog_data.normals_indices[primitive_index].z]
+                         + (1 - u - v) * prog_data.normals[prog_data.normals_indices[primitive_index].x]);
+    }
+    else
+    {
+        const vec3f A = prog_data.vertices[prog_data.indices[primitive_index].x];
+        const vec3f B = prog_data.vertices[prog_data.indices[primitive_index].y];
+        const vec3f C = prog_data.vertices[prog_data.indices[primitive_index].z];
+
+        normal = normalize(cross(B - A, C - A));
+    }
 
     vec3f ray_direction = optixGetWorldRayDirection();
     const vec3f view_direction = -ray_direction;
@@ -95,12 +105,12 @@ OPTIX_CLOSEST_HIT_PROGRAM(Triangle)()
     // -------------- Specular -------------- //
     vec3f triangle_specular_color = prog_data.materials[mat_index].specular;
     float triangle_shininess = prog_data.materials[mat_index].shininess;
-    vec3f reflection_direction = normalize(ray_direction - 2 * dot(normal, ray_direction) * normal);
+    vec3f reflection_direction = normalize(ray_direction - 2.0f * dot(normal, ray_direction) * normal);
     pixel_color += triangle_specular_color * pow(max(dot(reflection_direction, view_direction), 0.0f), triangle_shininess);
 
     // -------------- Reflections -------------- //
     float triangle_reflection = prog_data.materials[mat_index].reflection_coefficient;
-    if (triangle_reflection > 0)
+    if (triangle_reflection > 0.0f)
     {
         //We're declaring the ray as reflected, the 'recursion' will handle it
         prd.scatter.state = RAY_SCATTER_STATE::RAY_SCATTER_BOUNCE;
@@ -126,8 +136,8 @@ OPTIX_MISS_PROGRAM(miss)()
     vec3f ray_direction = optixGetWorldRayDirection();
     ray_direction = normalize(ray_direction);
 
-    float u = 0.5 + atan2(ray_direction.z, ray_direction.x) / (2 * M_PI);
-    float v = 0.5 + asin(ray_direction.y) / M_PI;
+    float u = 0.5 + atan2(ray_direction.z, ray_direction.x) / (2.0f * static_cast<float>(M_PI));
+    float v = 0.5 + asin(ray_direction.y) / static_cast<float>(M_PI);
 
     vec4f skysphere_color = tex2D<float4>(miss_prog_data.skysphere, u, v);
 

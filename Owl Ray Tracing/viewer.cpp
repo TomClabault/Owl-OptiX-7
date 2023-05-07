@@ -61,8 +61,13 @@ Viewer::Viewer(const Scene& rt_scene) : m_scene(rt_scene)
 
     OWLBuffer triangles_indices_buffer = owlDeviceBufferCreate(m_owl,               OWL_INT3, m_scene.m_indices.size(), m_scene.m_indices.data());
     OWLBuffer triangles_vertices_buffer = owlDeviceBufferCreate(m_owl,              OWL_FLOAT3, m_scene.m_vertices.size(), m_scene.m_vertices.data());
-    OWLBuffer triangles_normals_buffer = owlDeviceBufferCreate(m_owl,               OWL_FLOAT3, m_scene.m_vertex_normals.size(), m_scene.m_vertex_normals.data());
-    OWLBuffer triangles_normals_indices_buffer = owlDeviceBufferCreate(m_owl,       OWL_INT3, m_scene.m_vertex_normals_indices.size(), m_scene.m_vertex_normals_indices.data());
+    OWLBuffer triangles_normals_buffer;
+    OWLBuffer triangles_normals_indices_buffer;
+    if (m_scene.m_vertex_normals.size() > 0)
+    {
+        triangles_normals_indices_buffer = owlDeviceBufferCreate(m_owl,       OWL_INT3, m_scene.m_vertex_normals_indices.size(), m_scene.m_vertex_normals_indices.data());
+        triangles_normals_buffer = owlDeviceBufferCreate(m_owl,               OWL_FLOAT3, m_scene.m_vertex_normals.size(), m_scene.m_vertex_normals.data());
+    }
     OWLBuffer triangles_materials_buffer = owlDeviceBufferCreate(m_owl,             OWL_USER_TYPE(m_scene.m_materials[0]), m_scene.m_materials.size(), m_scene.m_materials.data());
     OWLBuffer triangles_materials_indices_buffers = owlDeviceBufferCreate(m_owl,    OWL_INT, m_scene.m_materials_indices.size(), m_scene.m_materials_indices.data());
 
@@ -73,8 +78,11 @@ Viewer::Viewer(const Scene& rt_scene) : m_scene(rt_scene)
 
     owlGeomSetBuffer(triangle_geom, "indices", triangles_indices_buffer);
     owlGeomSetBuffer(triangle_geom, "vertices", triangles_vertices_buffer);
-    owlGeomSetBuffer(triangle_geom, "normals", triangles_normals_buffer);
-    owlGeomSetBuffer(triangle_geom, "normals_indices", triangles_normals_indices_buffer);
+    if (m_scene.m_vertex_normals.size() > 0)
+    {
+        owlGeomSetBuffer(triangle_geom, "normals", triangles_normals_buffer);
+        owlGeomSetBuffer(triangle_geom, "normals_indices", triangles_normals_indices_buffer);
+    }
     owlGeomSetBuffer(triangle_geom, "materials", triangles_materials_buffer);
     owlGeomSetBuffer(triangle_geom, "materials_indices", triangles_materials_indices_buffers);
 
@@ -145,6 +153,9 @@ void Viewer::resize(const owl::vec2i& new_size)
 
 void Viewer::render()
 {
+    //camera.position = vec3f(0.0f, 0.0f, 5.0f);
+    //cameraChanged();
+
     std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::high_resolution_clock::now();
 
     m_frame_number++;
@@ -170,6 +181,7 @@ void Viewer::render()
     }
 
     owlRayGenLaunch2D(m_rayGen, fbSize.x, fbSize.y);
+    //std::exit(0);
 
     auto stop = std::chrono::high_resolution_clock::now();
 

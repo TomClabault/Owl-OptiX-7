@@ -71,8 +71,8 @@ struct TriangleGeomData
 {
     vec3f* vertices;
     vec3i* indices;
-    vec3f* normals;
-    vec3i* normals_indices;
+    vec3f* normals = nullptr;
+    vec3i* normals_indices = nullptr;
 
     int* materials_indices;
     Material* materials;

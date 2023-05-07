@@ -11,6 +11,11 @@ void Scene::load_obj_into_scene(const char* filepath)
     OBJUtils::read_obj(filepath, m_indices, m_vertices, m_vertex_normals, m_vertex_normals_indices, m_materials, m_materials_indices);
 }
 
+void Scene::load_obj_into_scene_no_vertex_normals(const char* filepath)
+{
+    OBJUtils::read_obj_no_vertex_normals(filepath, m_indices, m_vertices, m_materials, m_materials_indices);
+}
+
 float* read_image( const char *filename, int& width, int& height, const bool flipY )
 {
     stbi_set_flip_vertically_on_load(flipY);

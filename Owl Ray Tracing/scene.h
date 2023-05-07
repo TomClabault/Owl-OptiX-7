@@ -13,6 +13,8 @@ class Scene
 {
 public:
     void load_obj_into_scene(const char* file_path);
+    void load_obj_into_scene_no_vertex_normals(const char* filepath);
+
     void load_skysphere(const char* file_path);
 
     std::vector<vec4uc> m_skysphere;

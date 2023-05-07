@@ -7,13 +7,13 @@
 
 #include <chrono>
 
+#include "shader.h"
+
 using namespace owl;
 
 class Viewer : public viewer::OWLViewer
 {
 public:
-    static const vec3f BACKGROUND_COLOR;
-
     Viewer();
 
     void render() override;
@@ -21,12 +21,19 @@ public:
     void resize(const vec2i& new_size) override;
     void cameraChanged() override;
 
+    void load_skysphere(const char* filepath);
     void print_frame_time(std::chrono::time_point<std::chrono::steady_clock>& start, std::chrono::time_point<std::chrono::steady_clock>& stop);
 
 private:
-    unsigned int m_frame_number = 0;
+    vec3f* m_accumulation_buffer = nullptr;
+    uint32_t m_frame_number = 0;
 
     bool m_sbt_dirty = true;
+
+    std::vector<vec4uc> m_skysphere;
+    int m_skysphere_width, m_skysphere_height;
+
+    std::vector<LambertianSphere> m_lambertian_spheres;
 
     OWLContext m_owl_context;
     OWLModule m_module;
