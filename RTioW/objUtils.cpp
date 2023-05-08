@@ -114,9 +114,10 @@ void OBJUtils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3
     }
 }
 
-void OBJUtils::read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<Material>& materials, std::vector<int>& materials_indices)
+void OBJUtils::read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normals_indices, std::vector<Material>& materials, std::vector<int>& materials_indices)
 {
     read_obj_no_vertex_normals(filepath, indices, vertices, materials, materials_indices);
 
     vertex_normals = compute_smooth_normals(indices, vertices);
+    vertex_normals_indices = indices;
 }

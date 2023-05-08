@@ -30,6 +30,7 @@ struct ObjTriangleGeomData
     vec3i* indices;
     vec3f* vertices;
 
+
     vec3i* vertex_normals_indices;
     vec3f* vertex_normals;
 
@@ -49,26 +50,20 @@ struct LambertianSphere
     LambertianMaterial material;
 };
 
+struct DielectricSphere
+{
+    Sphere sphere;
+    DielectricMaterial material;
+};
+
 struct LambertianSpheresGeometryData
 {
     LambertianSphere* primitives;
 };
 
-struct DiffuseTriangleGeomData
+struct DielectricSpheresGeometryData
 {
-    vec3i* indices;
-    vec3f* vertices;
-
-    vec3f albedo;
-};
-
-struct MetalTriangleGeomData
-{
-    vec3i* indices;
-    vec3f* vertices;
-
-    vec3f albedo;
-    float roughness;
+    DielectricSphere* primitives;
 };
 
 struct RayGenData
@@ -78,6 +73,7 @@ struct RayGenData
     vec2i frame_buffer_size;
 
     uint32_t* frame_buffer;
+    float4* float_frame_buffer;
 
     uint32_t frame_number;
     vec3f* accumulation_buffer;

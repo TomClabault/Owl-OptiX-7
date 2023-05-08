@@ -6,7 +6,7 @@
 #include <optix_device.h>
 
 #define NUM_SAMPLE_PER_PIXEL 1
-#define MAX_RECURSION_DEPTH 10
+#define MAX_RECURSION_DEPTH 1000
 
 vec3f __device__ random_in_unit_sphere(PerRayData& prd)
 {
@@ -22,9 +22,80 @@ vec3f __device__ random_in_hemisphere(PerRayData& prd, const vec3f& normal)
         return random_in_sphere;
 }
 
+vec3f __device__ perfect_reflect_target_direction(const vec3f& incident_ray, const vec3f& hit_point, const vec3f& normal)
+{
+    return incident_ray - 2 * dot(incident_ray, normal) * normal;
+}
+
 vec3f __device__ perfect_reflect_direction(const vec3f& incident_ray, const vec3f& normal)
 {
     return normalize(incident_ray - 2 * dot(incident_ray, normal) * normal);
+}
+
+float inline __device__ schlick_approximation(float cos_incident_angle, float ior)
+{
+    float r0 = (1.0f - ior) / (1.0f + ior);
+    r0 = r0 * r0;
+
+    return r0 + (1.0f - r0)*powf((1.0f - cos_incident_angle), 5.0f);
+}
+
+void inline __device__ diffuse_scatter(PerRayData& prd, const vec3f& hit_point, const vec3f& normal, const vec3f& albedo)
+{
+    prd.scatter.origin = hit_point + normal * 1.0e-4f;//Shifting the hit_point to avoid self intersections
+    prd.scatter.target = random_in_hemisphere(prd, normal) + hit_point;
+    prd.scatter.attenuation = albedo;
+    prd.scatter.state = ScatterState::BOUNCED;
+}
+
+void inline __device__ metal_scatter(PerRayData& prd, const vec3f& hit_point, const vec3f& ray_direction, const vec3f& normal, float roughness, const vec3f& albedo)
+{
+    prd.scatter.origin = hit_point + normal * 1.0e-4f;
+    vec3f perfect_reflection_target = perfect_reflect_direction(ray_direction, normal) + hit_point;
+    //Lerping between fuzzy target direction and perfect reflection
+    prd.scatter.target = (1.0f - roughness) * perfect_reflection_target + (roughness) * (random_in_hemisphere(prd, normal) + hit_point);
+    prd.scatter.attenuation = albedo;
+    prd.scatter.state = ScatterState::BOUNCED;
+}
+
+void inline __device__ dielectric_scatter(PerRayData& prd, const vec3f hit_point, const vec3f& ray_direction, const vec3f& normal, const vec3f& color, float ior)
+{
+    float cosi = clamp(dot(ray_direction, normal), -1.0f, 1.0f);
+    float etai = 1, etat = ior;
+    vec3f n = normal;
+    if (cosi < 0)
+        cosi = -cosi;
+    else
+    {
+        float temp = etai;
+        etai = etat;
+        etat = temp;
+        n = -normal;
+    }
+    float eta = etai / etat;
+    float k = 1 - eta * eta * (1 - cosi * cosi);
+
+    bool total_internal_reflection = k < 0.0f;
+
+    vec3f new_ray_target;
+    vec3f refract_dir;
+    if (total_internal_reflection)//We're going to reflect the ray rather than refract it
+        new_ray_target = perfect_reflect_target_direction(ray_direction, hit_point, normal);
+    else
+    {
+        float reflect_probability = schlick_approximation(cosi, ior);
+
+        if (prd.random() < reflect_probability)//The ray is reflected
+            new_ray_target = perfect_reflect_target_direction(ray_direction, hit_point, normal);
+        else//It is refracted
+            new_ray_target = k < 0 ? 0 : eta * ray_direction + (eta * cosi - sqrtf(k)) * n;
+    }
+
+    prd.scatter.origin = hit_point - n * 1.0e-4f;
+    prd.scatter.target = prd.scatter.origin + new_ray_target;
+    prd.scatter.attenuation = color;
+    prd.scatter.state = ScatterState::BOUNCED;
+
 }
 
 template <typename SphereGeomType>
@@ -39,6 +110,9 @@ void __device__ bounds_program(const void* primitive_data, box3f& bounds, int pr
 
 OPTIX_BOUNDS_PROGRAM(lambertian_spheres)(const void* primitive_data, box3f& bounds, int primitive_index)
 { bounds_program<LambertianSpheresGeometryData>(primitive_data, bounds, primitive_index); }
+
+OPTIX_BOUNDS_PROGRAM(dielectric_spheres)(const void* primitive_data, box3f& bounds, int primitive_index)
+{ bounds_program<DielectricSpheresGeometryData>(primitive_data, bounds, primitive_index); }
 
 template <typename SphereGeomType>
 void __device__ sphere_intersect()
@@ -74,16 +148,11 @@ void __device__ sphere_intersect()
         optixReportIntersection(hit_t, 0);
 }
 
-void inline __device__ diffuse_scatter(PerRayData& prd, const vec3f& hit_point, const vec3f& normal, const vec3f& albedo)
-{
-    prd.scatter.origin = hit_point + normal * 1.0e-4f;//Shifting the hit_point to avoid self intersections
-    prd.scatter.target = random_in_hemisphere(prd, normal) + hit_point;
-    prd.scatter.attenuation = albedo;
-    prd.scatter.state = ScatterState::BOUNCED;
-}
-
 OPTIX_INTERSECT_PROGRAM(lambertian_spheres)()
 { sphere_intersect<LambertianSpheresGeometryData>(); }
+
+OPTIX_INTERSECT_PROGRAM(dielectric_spheres)()
+{ sphere_intersect<DielectricSpheresGeometryData>(); }
 
 OPTIX_CLOSEST_HIT_PROGRAM(lambertian_spheres)()
 {
@@ -99,6 +168,23 @@ OPTIX_CLOSEST_HIT_PROGRAM(lambertian_spheres)()
     vec3f normal = normalize(hit_point - sphere_data.sphere.center);
 
     diffuse_scatter(prd, hit_point, normal, sphere_data.material.albedo);
+    prd.scatter.attenuation *= dot(normal, normalize(prd.scatter.target - prd.scatter.origin));
+}
+
+OPTIX_CLOSEST_HIT_PROGRAM(dielectric_spheres)()
+{
+    int primitive_index = optixGetPrimitiveIndex();
+    const DielectricSphere& sphere_data = getProgramData<DielectricSpheresGeometryData>().primitives[primitive_index];
+
+    PerRayData& prd = getPRD<PerRayData>();
+
+    float t_hit = optixGetRayTmax();
+    vec3f origin = optixGetWorldRayOrigin();
+    vec3f ray_direction = optixGetWorldRayDirection();
+    vec3f hit_point = origin + t_hit * ray_direction;
+    vec3f normal = normalize(hit_point - sphere_data.sphere.center);
+
+    dielectric_scatter(prd, hit_point, ray_direction, normal, sphere_data.material.color_attenuation, sphere_data.material.ior);
 }
 
 template <typename TriangleGeomDataType>
@@ -125,13 +211,7 @@ void __device__ triangle_closest_hit<MetalTriangleGeomData>()
     if (dot(normal, ray_direction) > 0)
         normal = -normal;
 
-    prd.scatter.origin = hit_point + normal * 1.0e-4f;
-    prd.scatter.target = perfect_reflect_direction(ray_direction, normal) + hit_point;
-    //Lerping between fuzzy target direction and perfect reflection
-    prd.scatter.target = (1.0f - triangle_data.roughness) * prd.scatter.target + (triangle_data.roughness) * (random_in_hemisphere(prd, normal) + hit_point);
-    prd.scatter.attenuation = triangle_data.albedo;
-
-    prd.scatter.state = ScatterState::BOUNCED;
+    metal_scatter(prd, hit_point, ray_direction, normal, triangle_data.roughness, triangle_data.albedo);
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(metal_triangles)()
@@ -159,17 +239,15 @@ OPTIX_CLOSEST_HIT_PROGRAM(obj_triangle)()
     const vec3f& C = triangle_data.vertices[triangle_indices.z];
 
     vec3i vertex_normals_indices = triangle_data.vertex_normals_indices[primitive_index];
-//    vec3f normal = normalize(u * triangle_data.vertex_normals[triangle_data.vertex_normals_indices[primitive_index].x]
-//                       + v * triangle_data.vertex_normals[triangle_data.vertex_normals_indices[primitive_index].y]
-//                       + (1 - u - v) * triangle_data.vertex_normals[triangle_data.vertex_normals_indices[primitive_index].z]);
-    vec3f normal = triangle_data.vertex_normals[vertex_normals_indices.x] * uv.x
-                 + triangle_data.vertex_normals[vertex_normals_indices.y] * uv.y
-                 + triangle_data.vertex_normals[vertex_normals_indices.z] * (1 - uv.x - uv.y);
-    normal = normalize(normal);
+    vec3f normal = normalize(u * triangle_data.vertex_normals[triangle_data.vertex_normals_indices[primitive_index].y]
+                           + v * triangle_data.vertex_normals[triangle_data.vertex_normals_indices[primitive_index].z]
+                           + (1 - u - v) * triangle_data.vertex_normals[triangle_data.vertex_normals_indices[primitive_index].x]);
 
-    vec3f albedo = triangle_data.materials[primitive_index].diffuse;
+    vec3f albedo = triangle_data.materials[triangle_data.materials_indices[primitive_index]].diffuse;
 
-    diffuse_scatter(prd, hit_point, normal, albedo);
+    dielectric_scatter(prd, hit_point, ray_direction, normal, albedo, 1.5);
+
+    //diffuse_scatter(prd, hit_point, normal, albedo);
 }
 
 OPTIX_MISS_PROGRAM(miss)()
@@ -250,6 +328,16 @@ extern "C" __global__ void __raygen__ray_gen()
     vec3f accumulated_color = ray_gen_data.accumulation_buffer[pixel_index];
     vec3f averaged_color = accumulated_color / (float)ray_gen_data.frame_number;
     vec3f gamma_corrected = vec3f(sqrtf(averaged_color.x), sqrtf(averaged_color.y), sqrtf(averaged_color.z));
+    //TODO clamp gamma corrected
 
+    gamma_corrected = clamp(gamma_corrected, vec3f(0.0f), vec3f(1.0f));
+
+    float4 float4_val;
+    float4_val.x = gamma_corrected.x;
+    float4_val.y = gamma_corrected.y;
+    float4_val.z = gamma_corrected.z;
+    float4_val.w = 1.0f;
+
+    ray_gen_data.float_frame_buffer[pixel_index] = float4_val;
     ray_gen_data.frame_buffer[pixel_index] = make_rgba(gamma_corrected);
 }

@@ -23,7 +23,7 @@ public:
      * @param materials
      * @param materials_indices
      */
-    static void read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<Material>& materials, std::vector<int>& materials_indices);
+    static void read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normals_indices, std::vector<Material>& materials, std::vector<int>& materials_indices);
 
     static void read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<Material>& materials, std::vector<int>& materials_indices);
 };

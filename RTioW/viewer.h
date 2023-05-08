@@ -1,12 +1,12 @@
 #ifndef VIEWER_H
 #define VIEWER_H
 
-#include <owl/owl.h>
-
-#include "owlViewer/OWLViewer.h"
-
 #include <chrono>
 
+#include <owl/owl.h>
+#include "owlViewer/OWLViewer.h"
+
+#include "cudaBuffer.h"
 #include "shader.h"
 
 using namespace owl;
@@ -20,9 +20,15 @@ public:
     OWLGroup create_obj_group(const char* obj_file_path);
 
     void render() override;
+    void setup_denoiser(const vec2i& newSize);
+    void denoise_render();
 
     void resize(const vec2i& new_size) override;
     void cameraChanged() override;
+
+    void mouseButtonLeft(const vec2i &where, bool pressed) override;
+    void mouseButtonRight(const vec2i& where, bool pressed) override;
+    void mouseButtonCenter(const vec2i& where, bool pressed) override;
 
     void load_skysphere(const char* filepath);
     void print_frame_time(std::chrono::time_point<std::chrono::steady_clock>& start, std::chrono::time_point<std::chrono::steady_clock>& stop);
@@ -42,6 +48,15 @@ private:
     OWLModule m_module;
 
     OWLRayGen m_ray_gen_program;
+
+    //Float4 frame buffer needed as input to the denoiser
+    float4* m_float_frame_buffer = nullptr;
+    OptixDenoiser denoiser = nullptr;
+    CUDABuffer denoiserScratch;
+    CUDABuffer denoiserState;
+
+    bool denoiser_on = true;
+    CUDABuffer m_denoised_buffer;
 };
 
 #endif
