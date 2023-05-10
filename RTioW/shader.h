@@ -30,7 +30,6 @@ struct ObjTriangleGeomData
     vec3i* indices;
     vec3f* vertices;
 
-
     vec3i* vertex_normals_indices;
     vec3f* vertex_normals;
 
@@ -56,6 +55,12 @@ struct DielectricSphere
     DielectricMaterial material;
 };
 
+struct MetalSphere
+{
+    Sphere sphere;
+    MetalMaterial material;
+};
+
 struct LambertianSpheresGeometryData
 {
     LambertianSphere* primitives;
@@ -66,17 +71,24 @@ struct DielectricSpheresGeometryData
     DielectricSphere* primitives;
 };
 
+struct MetalSpheresGeometryData
+{
+    MetalSphere* primitives;
+};
+
 struct RayGenData
 {
     OptixTraversableHandle scene;
 
     vec2i frame_buffer_size;
 
-    uint32_t* frame_buffer;
-    float4* float_frame_buffer;
-
     uint32_t frame_number;
     vec3f* accumulation_buffer;
+    uint32_t* frame_buffer;
+
+    float4* float_frame_buffer;//Float frame buffer for the denoiser
+    float4* normal_buffer;//Normal buffer for the denoiser
+    float4* albedo_buffer;//Albedo buffer for the denoiser
 
     struct
     {
@@ -84,29 +96,6 @@ struct RayGenData
         vec3f direction_00;
         vec3f direction_dx, direction_dy;
     } camera;
-};
-
-enum ScatterState
-{
-    BOUNCED,//Bounced/reflected/refracted off of object
-    TERMINATED, //Completely absorbed and not bounced
-    MISSED  //Hit the sky
-};
-
-struct ScatterInfo
-{
-    vec3f origin, target;
-
-    vec3f attenuation;
-
-    ScatterState state;
-};
-
-struct PerRayData
-{
-    owl::common::LCG<4> random;
-
-    ScatterInfo scatter;
 };
 
 struct MissProgData

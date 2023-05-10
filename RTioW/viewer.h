@@ -22,6 +22,7 @@ public:
     void render() override;
     void setup_denoiser(const vec2i& newSize);
     void denoise_render();
+    void cuda_float4_to_rgb();
 
     void resize(const vec2i& new_size) override;
     void cameraChanged() override;
@@ -50,10 +51,14 @@ private:
     OWLRayGen m_ray_gen_program;
 
     //Float4 frame buffer needed as input to the denoiser
-    float4* m_float_frame_buffer = nullptr;
+    CUDABuffer m_float_frame_buffer;
+    CUDABuffer m_normal_buffer;
+    CUDABuffer m_albedo_buffer;
+    CUDABuffer m_denoiserIntensity;
     OptixDenoiser denoiser = nullptr;
-    CUDABuffer denoiserScratch;
-    CUDABuffer denoiserState;
+    CUDABuffer m_denoiserScratch;
+    CUDABuffer m_denoiserState;
+    CUDABuffer m_converted_buffer;//Buffer that will hold the converted data from the float4 denoised_buffer in the uint32_t format, ready to be displayed
 
     bool denoiser_on = true;
     CUDABuffer m_denoised_buffer;

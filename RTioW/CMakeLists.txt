@@ -16,8 +16,9 @@ embed_ptx(
 
 add_executable(RTioW main.cpp
                      objUtils.cpp
-                     optix7.h
                      viewer.cpp
+
+                     floatToRgb.cu
 
                      cudaBuffer.h
                      materials.h

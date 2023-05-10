@@ -14,13 +14,13 @@ struct DiffuseTriangleGeomData
     vec3f albedo;
 };
 
-struct MetalTriangleGeomData
+//Perfectly diffuse
+struct FloorTriangleGeomData
 {
     vec3i* indices;
     vec3f* vertices;
 
     vec3f albedo;
-    float roughness;
 };
 
 struct LambertianMaterial
@@ -33,6 +33,13 @@ struct DielectricMaterial
     float ior;
 
     vec3f color_attenuation = vec3f(1.0f, 1.0f, 1.0f);
+};
+
+struct MetalMaterial
+{
+    vec3f albedo;
+
+    float roughness;
 };
 
 #endif

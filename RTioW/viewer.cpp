@@ -3,6 +3,7 @@
 #include "viewer.h"
 
 #include "owl/helper/optix.h"
+#include "optix_host.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
@@ -37,6 +38,22 @@ std::vector<DielectricSphere> create_dielectric_spheres()
     return spheres;
 }
 
+
+std::vector<MetalSphere> create_metal_spheres()
+{
+    std::vector<MetalSphere> spheres;
+
+    MetalSphere sphere;
+    sphere.sphere.center = vec3f(0.0f, 1.4f, -4.0f);
+    sphere.sphere.radius = 0.7f;
+    sphere.material.albedo = vec3f(0.9f);
+    sphere.material.roughness = 0.4;
+
+    spheres.push_back(sphere);
+
+    return spheres;
+}
+
 OWLGroup Viewer::create_floor_group()
 {
     vec3i floor_indices[] = {
@@ -53,27 +70,25 @@ OWLGroup Viewer::create_floor_group()
     };
 
     OWLVarDecl floor_vars[] = {
-        { "indices",    OWL_BUFPTR, OWL_OFFSETOF(MetalTriangleGeomData, indices)},
-        { "vertices",   OWL_BUFPTR, OWL_OFFSETOF(MetalTriangleGeomData, vertices)},
-        { "albedo",     OWL_FLOAT3, OWL_OFFSETOF(MetalTriangleGeomData, albedo)},
-        { "roughness",  OWL_FLOAT,  OWL_OFFSETOF(MetalTriangleGeomData, roughness)},
+        { "indices",    OWL_BUFPTR, OWL_OFFSETOF(FloorTriangleGeomData, indices)},
+        { "vertices",   OWL_BUFPTR, OWL_OFFSETOF(FloorTriangleGeomData, vertices)},
+        { "albedo",     OWL_FLOAT3, OWL_OFFSETOF(FloorTriangleGeomData, albedo)},
         { /* sentinel */ }
     };
 
     OWLBuffer floor_indices_buffer = owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(vec3i), 2, floor_indices);
     OWLBuffer flooor_vertices_buffer = owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(vec3f), 4, floor_vertices);
 
-    OWLGeomType floor_geometry_type = owlGeomTypeCreate(m_owl_context, OWL_TRIANGLES, sizeof(MetalTriangleGeomData), floor_vars, -1);
+    OWLGeomType floor_geometry_type = owlGeomTypeCreate(m_owl_context, OWL_TRIANGLES, sizeof(FloorTriangleGeomData), floor_vars, -1);
     OWLGeom floor_geom = owlGeomCreate(m_owl_context, floor_geometry_type);
 
-    owlGeomTypeSetClosestHit(floor_geometry_type, 0, m_module, "metal_triangles");
+    owlGeomTypeSetClosestHit(floor_geometry_type, 0, m_module, "floor_triangles");
     owlTrianglesSetIndices(floor_geom, floor_indices_buffer, 2, sizeof(vec3i), 0);
     owlTrianglesSetVertices(floor_geom, flooor_vertices_buffer, 4, sizeof(vec3f), 0);
 
     owlGeomSetBuffer(floor_geom, "indices", floor_indices_buffer);
     owlGeomSetBuffer(floor_geom, "vertices", flooor_vertices_buffer);
     owlGeomSet3f(floor_geom, "albedo", 0.9f, 0.9f, 0.9f);
-    owlGeomSet1f(floor_geom, "roughness", 0.025f);
 
     OWLGroup floor_group = owlTrianglesGeomGroupCreate(m_owl_context, 1, &floor_geom);
 
@@ -153,24 +168,48 @@ Viewer::Viewer()
     owlGeomSetPrimCount(lambertian_sphere_geometry, m_lambertian_spheres.size());
     owlGeomSetBuffer(lambertian_sphere_geometry, "primitives", lambertian_spheres_buffer);
 
-    OWLVarDecl dieletric_spheres_geometry_vars[] = {
+
+
+
+
+    OWLVarDecl dielectric_spheres_geometry_vars[] = {
         { "primitives", OWL_BUFPTR, OWL_OFFSETOF(DielectricSpheresGeometryData, primitives)},
         { /* sentinel */ }
     };
-    OWLGeomType dieletric_sphere_geometry_type = owlGeomTypeCreate(m_owl_context, OWL_GEOMETRY_USER, sizeof(DielectricSpheresGeometryData), dieletric_spheres_geometry_vars, -1);
-    owlGeomTypeSetBoundsProg(dieletric_sphere_geometry_type, m_module, "dielectric_spheres");
-    owlGeomTypeSetIntersectProg(dieletric_sphere_geometry_type, 0, m_module, "dielectric_spheres");
-    owlGeomTypeSetClosestHit(dieletric_sphere_geometry_type, 0, m_module, "dielectric_spheres");
+    OWLGeomType dielectric_sphere_geometry_type = owlGeomTypeCreate(m_owl_context, OWL_GEOMETRY_USER, sizeof(DielectricSpheresGeometryData), dielectric_spheres_geometry_vars, -1);
+    owlGeomTypeSetBoundsProg(dielectric_sphere_geometry_type, m_module, "dielectric_spheres");
+    owlGeomTypeSetIntersectProg(dielectric_sphere_geometry_type, 0, m_module, "dielectric_spheres");
+    owlGeomTypeSetClosestHit(dielectric_sphere_geometry_type, 0, m_module, "dielectric_spheres");
 
-    OWLGeom dielectric_sphere_geom = owlGeomCreate(m_owl_context, dieletric_sphere_geometry_type);
+    OWLGeom dielectric_sphere_geom = owlGeomCreate(m_owl_context, dielectric_sphere_geometry_type);
     std::vector<DielectricSphere> dielectric_spheres = create_dielectric_spheres();
     OWLBuffer dielectric_spheres_buffer = owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(DielectricSphere), dielectric_spheres.size(), dielectric_spheres.data());
     owlGeomSetPrimCount(dielectric_sphere_geom, dielectric_spheres.size());
     owlGeomSetBuffer(dielectric_sphere_geom, "primitives", dielectric_spheres_buffer);
 
+
+
+
+
+    OWLVarDecl metal_spheres_geometry_vars[] = {
+        { "primitives", OWL_BUFPTR, OWL_OFFSETOF(MetalSpheresGeometryData, primitives)},
+        { /* sentinel */ }
+    };
+    OWLGeomType metal_sphere_geometry_type = owlGeomTypeCreate(m_owl_context, OWL_GEOMETRY_USER, sizeof(MetalSpheresGeometryData), metal_spheres_geometry_vars, -1);
+    owlGeomTypeSetBoundsProg(metal_sphere_geometry_type, m_module, "metal_spheres");
+    owlGeomTypeSetIntersectProg(metal_sphere_geometry_type, 0, m_module, "metal_spheres");
+    owlGeomTypeSetClosestHit(metal_sphere_geometry_type, 0, m_module, "metal_spheres");
+
+    OWLGeom metal_sphere_geom = owlGeomCreate(m_owl_context, metal_sphere_geometry_type);
+    std::vector<MetalSphere> metal_spheres = create_metal_spheres();
+    OWLBuffer metal_spheres_buffer = owlDeviceBufferCreate(m_owl_context, OWL_USER_TYPE(MetalSphere), metal_spheres.size(), metal_spheres.data());
+    owlGeomSetPrimCount(metal_sphere_geom, metal_spheres.size());
+    owlGeomSetBuffer(metal_sphere_geom, "primitives", metal_spheres_buffer);
+
     OWLGeom spheres_geoms[] = {
         lambertian_sphere_geometry,
-        dielectric_sphere_geom
+        dielectric_sphere_geom,
+        metal_sphere_geom
     };
 
     owlBuildPrograms(m_owl_context);
@@ -178,25 +217,31 @@ Viewer::Viewer()
     OWLGroup floor_group = create_floor_group();
     owlGroupBuildAccel(floor_group);
 
-    OWLGroup obj_group = create_obj_group("../../common_data/stanford_bunny.obj");
+    OWLGroup obj_group = create_obj_group("../../common_data/bunny_translated.obj");
     owlGroupBuildAccel(obj_group);
 
-    OWLGroup spheres_group = owlUserGeomGroupCreate(m_owl_context, 2, spheres_geoms);
+    OWLGroup obj_group_2 = create_obj_group("D:\\Bureau\\Repos\\M1\\m-1-synthese\\tp2\\data\\xyzrgb_dragon.obj");
+    owlGroupBuildAccel(obj_group_2);
+
+    OWLGroup spheres_group = owlUserGeomGroupCreate(m_owl_context, 3, spheres_geoms);
     owlGroupBuildAccel(spheres_group);
 
-    OWLGroup scene = owlInstanceGroupCreate(m_owl_context, 3);
+    OWLGroup scene = owlInstanceGroupCreate(m_owl_context, 4);
     owlInstanceGroupSetChild(scene, 0, spheres_group);
     owlInstanceGroupSetChild(scene, 1, floor_group);
     owlInstanceGroupSetChild(scene, 2, obj_group);
+    owlInstanceGroupSetChild(scene, 3, obj_group_2);
     owlGroupBuildAccel(scene);
 
     OWLVarDecl ray_gen_variables[] = {
         { "scene",                  OWL_GROUP,          OWL_OFFSETOF(RayGenData, scene) },
         { "frame_buffer_size",      OWL_INT2,           OWL_OFFSETOF(RayGenData, frame_buffer_size) },
         { "frame_buffer",           OWL_RAW_POINTER,    OWL_OFFSETOF(RayGenData, frame_buffer)},
-        { "float_frame_buffer",           OWL_RAW_POINTER,    OWL_OFFSETOF(RayGenData, float_frame_buffer)},
         { "accumulation_buffer",    OWL_RAW_POINTER,    OWL_OFFSETOF(RayGenData, accumulation_buffer)},
         { "frame_number",           OWL_UINT,           OWL_OFFSETOF(RayGenData, frame_number)},
+        { "float_frame_buffer",     OWL_RAW_POINTER,    OWL_OFFSETOF(RayGenData, float_frame_buffer)},
+        { "normal_buffer",          OWL_RAW_POINTER,    OWL_OFFSETOF(RayGenData, normal_buffer)},
+        { "albedo_buffer",          OWL_RAW_POINTER,    OWL_OFFSETOF(RayGenData, albedo_buffer)},
         { "camera.position",        OWL_FLOAT3,         OWL_OFFSETOF(RayGenData, camera.position) },
         { "camera.direction_00",    OWL_FLOAT3,         OWL_OFFSETOF(RayGenData, camera.direction_00) },
         { "camera.direction_dx",    OWL_FLOAT3,         OWL_OFFSETOF(RayGenData, camera.direction_dx) },
@@ -207,14 +252,18 @@ Viewer::Viewer()
     m_ray_gen_program = owlRayGenCreate(m_owl_context, m_module, "ray_gen", sizeof(RayGenData), ray_gen_variables, -1);
 
     cudaMallocManaged(&m_accumulation_buffer, sizeof(vec3f) * fbSize.x * fbSize.y);
-    cudaMallocManaged(&m_float_frame_buffer,  sizeof(float4) * fbSize.x * fbSize.y);
+    m_float_frame_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
+    m_normal_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
+    m_albedo_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
 
     camera.position = vec3f(0.0f, 0.0f, 1.0f);
     owlRayGenSet2i(m_ray_gen_program,     "frame_buffer_size",    fbSize.x, fbSize.y);
     owlRayGenSet1ul(m_ray_gen_program,    "frame_buffer",         (uint64_t)fbPointer);
-    owlRayGenSet1ul(m_ray_gen_program,    "float_frame_buffer",   (uint64_t)m_float_frame_buffer);
     owlRayGenSet1ul(m_ray_gen_program,    "accumulation_buffer",  (uint64_t)m_accumulation_buffer);
     owlRayGenSet1ui(m_ray_gen_program,    "frame_number",         m_frame_number);
+    owlRayGenSet1ul(m_ray_gen_program,    "float_frame_buffer",   (uint64_t)m_float_frame_buffer.d_pointer());
+    owlRayGenSet1ul(m_ray_gen_program,    "normal_buffer",        (uint64_t)m_normal_buffer.d_pointer());
+    owlRayGenSet1ul(m_ray_gen_program,    "albedo_buffer",        (uint64_t)m_albedo_buffer.d_pointer());
     owlRayGenSetGroup(m_ray_gen_program,  "scene",                scene);
 
 
@@ -241,9 +290,9 @@ void Viewer::setup_denoiser(const vec2i& newSize)
         OPTIX_CHECK(optixDenoiserDestroy(denoiser));
 
     //The float frame buffer for the denoiser
-    if (m_float_frame_buffer)
-        cudaFree(m_float_frame_buffer);
-    cudaMallocManaged(&m_float_frame_buffer, sizeof(float4) * newSize.x * newSize.y);
+    m_float_frame_buffer.resize(sizeof(float4) * newSize.x * newSize.y);
+    m_normal_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
+    m_albedo_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
 
     // ------------------------------------------------------------------
     // create the denoiser:
@@ -255,21 +304,138 @@ void Viewer::setup_denoiser(const vec2i& newSize)
     OptixDenoiserSizes denoiserReturnSizes;
     OPTIX_CHECK(optixDenoiserComputeMemoryResources(denoiser, newSize.x, newSize.y, &denoiserReturnSizes));
 
-    denoiserScratch.resize(std::max(denoiserReturnSizes.withOverlapScratchSizeInBytes,
+    m_denoiserScratch.resize(std::max(denoiserReturnSizes.withOverlapScratchSizeInBytes,
                                     denoiserReturnSizes.withoutOverlapScratchSizeInBytes));
-    denoiserState.resize(denoiserReturnSizes.stateSizeInBytes);
+    m_denoiserState.resize(denoiserReturnSizes.stateSizeInBytes);
 
     // ------------------------------------------------------------------
     // resize our cuda frame buffer
-    m_denoised_buffer.resize(newSize.x*newSize.y*sizeof(float4));
+    m_denoised_buffer.resize(newSize.x * newSize.y * sizeof(float4));
+    m_converted_buffer.resize(newSize.x * newSize.y * sizeof(uint32_t));
 
     // ------------------------------------------------------------------
     OPTIX_CHECK(optixDenoiserSetup(denoiser,0,
                                    newSize.x,newSize.y,
-                                   denoiserState.d_pointer(),
-                                   denoiserState.size(),
-                                   denoiserScratch.d_pointer(),
-                                   denoiserScratch.size()));
+                                   m_denoiserState.d_pointer(),
+                                   m_denoiserState.size(),
+                                   m_denoiserScratch.d_pointer(),
+                                   m_denoiserScratch.size()));
+}
+
+void Viewer::denoise_render()
+{
+    m_denoiserIntensity.resize(sizeof(float));
+
+    OptixDenoiserParams denoiserParams;
+    denoiserParams.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_ALPHA_AS_AOV;
+    denoiserParams.hdrIntensity = m_denoiserIntensity.d_pointer();
+    denoiserParams.blendFactor = 1.f / (float)m_frame_number;
+
+    // -------------------------------------------------------
+//    OptixImage2D inputLayer;
+//    inputLayer.data = m_float_frame_buffer.d_pointer();
+//    /// Width of the image (in pixels)
+//    inputLayer.width = fbSize.x;
+//    /// Height of the image (in pixels)
+//    inputLayer.height = fbSize.y;
+//    /// Stride between subsequent rows of the image (in bytes).
+//    inputLayer.rowStrideInBytes = fbSize.x * sizeof(float4);
+//    /// Stride between subsequent pixels of the image (in bytes).
+//    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
+//    inputLayer.pixelStrideInBytes = sizeof(float4);
+//    /// Pixel format.
+//    inputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    OptixImage2D inputLayer[3];
+    inputLayer[0].data = m_float_frame_buffer.d_pointer();
+    /// Width of the image (in pixels)
+    inputLayer[0].width = fbSize.x;
+    /// Height of the image (in pixels)
+    inputLayer[0].height = fbSize.y;
+    /// Stride between subsequent rows of the image (in bytes).
+    inputLayer[0].rowStrideInBytes = fbSize.x * sizeof(float4);
+    /// Stride between subsequent pixels of the image (in bytes).
+    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
+    inputLayer[0].pixelStrideInBytes = sizeof(float4);
+    /// Pixel format.
+    inputLayer[0].format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    // ..................................................................
+    inputLayer[1].data = m_albedo_buffer.d_pointer();
+    /// Width of the image (in pixels)
+    inputLayer[1].width = fbSize.x;
+    /// Height of the image (in pixels)
+    inputLayer[1].height = fbSize.y;
+    /// Stride between subsequent rows of the image (in bytes).
+    inputLayer[1].rowStrideInBytes = fbSize.x * sizeof(float4);
+    /// Stride between subsequent pixels of the image (in bytes).
+    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
+    inputLayer[1].pixelStrideInBytes = sizeof(float4);
+    /// Pixel format.
+    inputLayer[1].format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    // ..................................................................
+    inputLayer[2].data = m_normal_buffer.d_pointer();
+    /// Width of the image (in pixels)
+    inputLayer[2].width = fbSize.x;
+    /// Height of the image (in pixels)
+    inputLayer[2].height = fbSize.y;
+    /// Stride between subsequent rows of the image (in bytes).
+    inputLayer[2].rowStrideInBytes = fbSize.x * sizeof(float4);
+    /// Stride between subsequent pixels of the image (in bytes).
+    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
+    inputLayer[2].pixelStrideInBytes = sizeof(float4);
+    /// Pixel format.
+    inputLayer[2].format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    // -------------------------------------------------------
+    OptixImage2D outputLayer;
+    outputLayer.data = m_denoised_buffer.d_pointer();
+    /// Width of the image (in pixels)
+    outputLayer.width = fbSize.x;
+    /// Height of the image (in pixels)
+    outputLayer.height = fbSize.y;
+    /// Stride between subsequent rows of the image (in bytes).
+    outputLayer.rowStrideInBytes = fbSize.x * sizeof(float4);
+    /// Stride between subsequent pixels of the image (in bytes).
+    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
+    outputLayer.pixelStrideInBytes = sizeof(float4);
+    /// Pixel format.
+    outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    // -------------------------------------------------------
+    OPTIX_CHECK(optixDenoiserComputeIntensity
+                (denoiser,
+                 /*stream*/0,
+                 &inputLayer[0],
+                 (CUdeviceptr)m_denoiserIntensity.d_pointer(),
+                 (CUdeviceptr)m_denoiserScratch.d_pointer(),
+                 m_denoiserScratch.size()));
+
+    OptixDenoiserGuideLayer denoiserGuideLayer = {};
+    denoiserGuideLayer.albedo = inputLayer[1];
+    denoiserGuideLayer.normal = inputLayer[2];
+
+    OptixDenoiserLayer denoiserLayer = {};
+    denoiserLayer.input = inputLayer[0];
+    denoiserLayer.output = outputLayer;
+
+    OPTIX_CHECK(optixDenoiserInvoke(denoiser,
+                                    /*stream*/0,
+                                    &denoiserParams,
+                                    m_denoiserState.d_pointer(),
+                                    m_denoiserState.size(),
+                                    &denoiserGuideLayer,
+                                    &denoiserLayer,1,
+                                    /*inputOffsetX*/0,
+                                    /*inputOffsetY*/0,
+                                    m_denoiserScratch.d_pointer(),
+                                    m_denoiserScratch.size()));
+
+    //This converts the float4 denoised buffer to a displayable uint32_t
+    //buffer and stores it into fbPointer so that owl::viewer::OWLViewer can do
+    //the drawing
+    cuda_float4_to_rgb();
 }
 
 void Viewer::resize(const vec2i& new_size)
@@ -282,6 +448,9 @@ void Viewer::resize(const vec2i& new_size)
     cudaMallocManaged(&m_accumulation_buffer, sizeof(vec3f) * fbSize.x * fbSize.y);//Allocating the new buffer
 
     setup_denoiser(new_size);
+    owlRayGenSet1ul(m_ray_gen_program,  "float_frame_buffer",  (uint64_t)m_float_frame_buffer.d_pointer());
+    owlRayGenSet1ul(m_ray_gen_program,  "normal_buffer",  (uint64_t)m_normal_buffer.d_pointer());
+    owlRayGenSet1ul(m_ray_gen_program,  "albedo_buffer",  (uint64_t)m_albedo_buffer.d_pointer());
 
     cameraChanged();
 }
@@ -302,10 +471,8 @@ void Viewer::cameraChanged()
     camera_direction_00 -= 0.5f * camera_dx;
     camera_direction_00 -= 0.5f * camera_dy;
 
-
     owlRayGenSet2i(m_ray_gen_program,   "frame_buffer_size",   fbSize.x, fbSize.y);
     owlRayGenSet1ul(m_ray_gen_program,  "frame_buffer",        (uint64_t)fbPointer);
-    owlRayGenSet1ul(m_ray_gen_program,  "float_frame_buffer",  (uint64_t)m_float_frame_buffer);
     owlRayGenSet1ul(m_ray_gen_program,  "accumulation_buffer", (uint64_t)m_accumulation_buffer);
     owlRayGenSet3f(m_ray_gen_program,   "camera.position",     (const owl3f&) position);
     owlRayGenSet3f(m_ray_gen_program,   "camera.direction_00", (const owl3f&) camera_direction_00);
@@ -314,67 +481,6 @@ void Viewer::cameraChanged()
 
     m_frame_number = 0;
     m_sbt_dirty = true;
-}
-
-void Viewer::denoise_render()
-{
-    //setup_denoiser(fbSize);
-
-    OptixDenoiserParams denoiserParams;
-    denoiserParams.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_ALPHA_AS_AOV;
-    denoiserParams.hdrIntensity = (CUdeviceptr)0;
-    denoiserParams.blendFactor = 1.f / (float)m_frame_number;
-
-    // -------------------------------------------------------
-    OptixImage2D inputLayer;
-    inputLayer.data = (CUdeviceptr) m_float_frame_buffer;
-    /// Width of the image (in pixels)
-    inputLayer.width = fbSize.x;
-    /// Height of the image (in pixels)
-    inputLayer.height = fbSize.y;
-    /// Stride between subsequent rows of the image (in bytes).
-    inputLayer.rowStrideInBytes = fbSize.x * sizeof(float4);
-    /// Stride between subsequent pixels of the image (in bytes).
-    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
-    inputLayer.pixelStrideInBytes = sizeof(float4);
-    /// Pixel format.
-    inputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
-
-    // -------------------------------------------------------
-    OptixImage2D outputLayer;
-    outputLayer.data = m_denoised_buffer.d_pointer();
-    /// Width of the image (in pixels)
-    outputLayer.width = fbSize.x;
-    /// Height of the image (in pixels)
-    outputLayer.height = fbSize.y;
-    /// Stride between subsequent rows of the image (in bytes).
-    outputLayer.rowStrideInBytes = fbSize.x * sizeof(float4);
-    /// Stride between subsequent pixels of the image (in bytes).
-    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
-    outputLayer.pixelStrideInBytes = sizeof(float4);
-    /// Pixel format.
-    outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
-
-    // -------------------------------------------------------
-    OptixDenoiserGuideLayer denoiserGuideLayer = {};
-
-    OptixDenoiserLayer denoiserLayer = {};
-    denoiserLayer.input = inputLayer;
-    denoiserLayer.output = outputLayer;
-
-    OPTIX_CHECK(optixDenoiserInvoke(denoiser,
-                                    /*stream*/0,
-                                    &denoiserParams,
-                                    denoiserState.d_pointer(),
-                                    denoiserState.size(),
-                                    &denoiserGuideLayer,
-                                    &denoiserLayer,1,
-                                    /*inputOffsetX*/0,
-                                    /*inputOffsetY*/0,
-                                    denoiserScratch.d_pointer(),
-                                    denoiserScratch.size()));
-
-    cuda_float4_to_rgba<<<>>>();
 }
 
 void Viewer::render()
@@ -390,6 +496,7 @@ void Viewer::render()
         m_sbt_dirty = false;
     }
 
+    //If we minimize the window
     if (fbSize.x == 0 && fbSize.y == 0)
     {
         fbSize = vec2i(1, 1);
@@ -402,6 +509,10 @@ void Viewer::render()
 
     if (denoiser_on)
         denoise_render();
+    auto startcopy = std::chrono::high_resolution_clock::now();
+    cuda_float4_to_rgb();
+    auto stopcopy = std::chrono::high_resolution_clock::now();
+    std::cout << "copy time: " << std::chrono::duration_cast<std::chrono::milliseconds>(stopcopy - startcopy).count() << "ms" << std::endl;
 
     auto stop = std::chrono::high_resolution_clock::now();
 
