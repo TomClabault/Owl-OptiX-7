@@ -78,6 +78,10 @@ void OBJUtils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3
         const rapidobj::Material& material = mesh_materials[i];
 
         CookTorranceMaterial cook_torrance_material;
+        cook_torrance_material.albedo = vec3f(material.diffuse[0], material.diffuse[1], material.diffuse[2]);
+        cook_torrance_material.metallic = material.metallic;
+        //cook_torrance_material.reflectance = material.
+        cook_torrance_material.roughness = material.roughness;
 
         materials.push_back(cook_torrance_material);
     }

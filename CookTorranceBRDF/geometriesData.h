@@ -2,7 +2,8 @@
 #define GEOMETRIES_DATA_H
 
 #include "shaderMaterials.h"
-#include "owl/common/math/vec.h"
+
+#include <owl/common/math/vec.h>
 
 using namespace owl;
 
@@ -25,7 +26,7 @@ struct CookTorranceTriangleData
 {
     SmoothNormalsTriangleData triangle_data;
 
-    vec3i* materials_indices;
+    int* materials_indices;
     CookTorranceMaterial* materials;
 };
 

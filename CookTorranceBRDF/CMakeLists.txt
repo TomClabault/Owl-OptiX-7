@@ -18,6 +18,7 @@ add_executable(CookTorranceBRDF main.cpp
                                 objUtils.cpp
                                 viewer.cpp
 
+                                cookTorrance.h
                                 cudaBuffer.h
                                 geometriesData.h
                                 objUtils.h

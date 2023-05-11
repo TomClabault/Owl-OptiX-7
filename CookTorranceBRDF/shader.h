@@ -1,8 +1,9 @@
 #ifndef SHADER_H
 #define SHADER_H
 
-#include "optix_types.h"
-#include "owl/common/math/vec.h"
+#include <owl/owl.h>
+#include <owl/common/math/vec.h>
+
 #include "texture_types.h"
 
 using namespace owl;

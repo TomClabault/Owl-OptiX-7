@@ -72,6 +72,11 @@ OWLGroup Viewer::create_cook_torrance_obj_group(const char* obj_file_path)
     std::vector<int> materials_indices;
 
     OBJUtils::read_obj(obj_file_path, indices, vertices, vertex_normals, vertex_normals_indices, materials, materials_indices);
+    //Artificially modifying the material for debugging
+    materials[0].albedo = vec3f(1.0f, 0.0f, 0.0f);
+    materials[0].metallic = 1.0f;
+    materials[0].reflectance = 1.0f;
+    materials[0].roughness = 0.0f;
 
     OWLVarDecl triangleGeometryVars[] = {
         { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(CookTorranceTriangleData, triangle_data.indices)},

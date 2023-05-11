@@ -2,9 +2,9 @@
 #define OBJ_UTILS_H
 
 #include "shaderMaterials.h"
-#include "owl/common/math/vec.h"
 #include "rapidobj/rapidobj.hpp"
 
+#include <owl/common/math/vec.h>
 
 using namespace owl;
 
