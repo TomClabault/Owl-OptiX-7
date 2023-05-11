@@ -220,17 +220,17 @@ Viewer::Viewer()
     OWLGroup obj_group = create_obj_group("../../common_data/bunny_translated.obj");
     owlGroupBuildAccel(obj_group);
 
-    OWLGroup obj_group_2 = create_obj_group("D:\\Bureau\\Repos\\M1\\m-1-synthese\\tp2\\data\\xyzrgb_dragon.obj");
-    owlGroupBuildAccel(obj_group_2);
+//    OWLGroup obj_group_2 = create_obj_group("D:\\Bureau\\Repos\\M1\\m-1-synthese\\tp2\\data\\xyzrgb_dragon.obj");
+//    owlGroupBuildAccel(obj_group_2);
 
     OWLGroup spheres_group = owlUserGeomGroupCreate(m_owl_context, 3, spheres_geoms);
     owlGroupBuildAccel(spheres_group);
 
-    OWLGroup scene = owlInstanceGroupCreate(m_owl_context, 4);
+    OWLGroup scene = owlInstanceGroupCreate(m_owl_context, 3);
     owlInstanceGroupSetChild(scene, 0, spheres_group);
     owlInstanceGroupSetChild(scene, 1, floor_group);
     owlInstanceGroupSetChild(scene, 2, obj_group);
-    owlInstanceGroupSetChild(scene, 3, obj_group_2);
+    //owlInstanceGroupSetChild(scene, 3, obj_group_2);
     owlGroupBuildAccel(scene);
 
     OWLVarDecl ray_gen_variables[] = {
@@ -509,10 +509,7 @@ void Viewer::render()
 
     if (denoiser_on)
         denoise_render();
-    auto startcopy = std::chrono::high_resolution_clock::now();
     cuda_float4_to_rgb();
-    auto stopcopy = std::chrono::high_resolution_clock::now();
-    std::cout << "copy time: " << std::chrono::duration_cast<std::chrono::milliseconds>(stopcopy - startcopy).count() << "ms" << std::endl;
 
     auto stop = std::chrono::high_resolution_clock::now();
 

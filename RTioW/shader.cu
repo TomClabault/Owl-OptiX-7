@@ -12,7 +12,10 @@
 
 enum ScatterState
 {
-    BOUNCED,//Bounced/reflected/refracted off of object
+    BOUNCED,//Bounced off of object
+    //The distinction between bounced and refracted and reflected is necessary for the denoiser to get the proper albedo
+    REFLECTED,//Reflected off of object
+    REFRACTED,//Refracted off of object
     TERMINATED, //Completely absorbed and not bounced
     MISSED  //Hit the sky
 };
@@ -85,7 +88,11 @@ void inline __device__ metal_scatter(PerRayData& prd, const vec3f& hit_point, co
     prd.scatter.attenuation = albedo;
     prd.scatter.normal = normal;
     prd.scatter.albedo = albedo;
-    prd.scatter.state = ScatterState::BOUNCED;
+
+    if (roughness < 0.1)//The object is polished enough to be considered 'reflective'
+        prd.scatter.state = ScatterState::REFLECTED;
+    else
+        prd.scatter.state = ScatterState::BOUNCED;
 }
 
 void inline __device__ dielectric_scatter(PerRayData& prd, const vec3f hit_point, const vec3f& ray_direction, const vec3f& normal, const vec3f& color, float ior)
@@ -110,15 +117,28 @@ void inline __device__ dielectric_scatter(PerRayData& prd, const vec3f hit_point
     vec3f new_ray_target;
     vec3f refract_dir;
     if (total_internal_reflection)//We're going to reflect the ray rather than refract it
+    {
         new_ray_target = perfect_reflect_target_direction(ray_direction, hit_point, normal);
+        prd.scatter.state = ScatterState::REFLECTED;
+    }
     else
     {
         float reflect_probability = schlick_approximation(cosi, ior);
 
+        vec2i idx = getLaunchIndex();
+        if (idx.x == 0 && idx.y == 0)
+            printf("reflect proba: %f", reflect_probability);
+
         if (prd.random() < reflect_probability)//The ray is reflected
+        {
             new_ray_target = perfect_reflect_target_direction(ray_direction, hit_point, normal);
+            prd.scatter.state = ScatterState::REFLECTED;
+        }
         else//It is refracted
+        {
             new_ray_target = k < 0 ? 0 : eta * ray_direction + (eta * cosi - sqrtf(k)) * n;
+            prd.scatter.state = ScatterState::REFRACTED;
+        }
     }
 
     prd.scatter.origin = hit_point - n * 1.0e-4f;
@@ -126,7 +146,6 @@ void inline __device__ dielectric_scatter(PerRayData& prd, const vec3f hit_point
     prd.scatter.attenuation = color;
     prd.scatter.normal = normal;
     prd.scatter.albedo = color;
-    prd.scatter.state = ScatterState::BOUNCED;
 
 }
 
@@ -332,8 +351,8 @@ extern "C" __global__ void __raygen__ray_gen()
                     pixel_ID.y * ray_gen_data.frame_buffer_size.y * NUM_SAMPLE_PER_PIXEL * ray_gen_data.frame_number);
 
     vec3f final_color = vec3f(0.0f);
-    vec3f final_normal = vec3f(0.0f);//Used for the denoiser
-    vec3f final_albedo = vec3f(0.0f);//Used for the denoiser
+    vec3f sum_normal = vec3f(0.0f);//Used by the denoiser
+    vec3f sum_albedo = vec3f(0.0f);//Used by the denoiser
 
     Ray ray;
     for (int sample = 0; sample < NUM_SAMPLE_PER_PIXEL; sample++)
@@ -346,12 +365,23 @@ extern "C" __global__ void __raygen__ray_gen()
 
         vec3f attenuation = 1.0f;
         int recurse = 0;
+        bool albedo_set = false;//This boolean is used to get the albedo of the pixel only once because the denoiser only wants the first albedo encountered
         for (recurse = 0; recurse < MAX_RECURSION_DEPTH; recurse++)
         {
             traceRay(ray_gen_data.scene, ray, prd);
             attenuation *= prd.scatter.attenuation;
-            final_normal += prd.scatter.normal;
-            final_albedo += prd.scatter.albedo;
+            if (recurse == 0)//We only want to consider the normal of the primary hits for the denoiser
+                sum_normal += prd.scatter.normal;
+
+            //We're only going to add the albedo if we hit a non
+            //reflective/refractive material (or missed completely)
+            //and if the albedo hasn't been added yet
+            if ((prd.scatter.state == ScatterState::MISSED || prd.scatter.state == ScatterState::BOUNCED) && !albedo_set)
+            {
+                sum_albedo += prd.scatter.albedo;
+
+                albedo_set = true;
+            }
 
             if (prd.scatter.state == ScatterState::MISSED)
                 break;
@@ -362,7 +392,7 @@ extern "C" __global__ void __raygen__ray_gen()
 
                 break;
             }
-            else if (prd.scatter.state == ScatterState::BOUNCED)
+            else if (prd.scatter.state == ScatterState::BOUNCED || prd.scatter.state == ScatterState::REFLECTED || prd.scatter.state == ScatterState::REFRACTED)
             {
                 ray.origin = prd.scatter.origin;
                 ray.direction = normalize(prd.scatter.target - prd.scatter.origin);
@@ -384,7 +414,6 @@ extern "C" __global__ void __raygen__ray_gen()
 
     vec3f accumulated_color = ray_gen_data.accumulation_buffer[pixel_index];
     vec3f averaged_color = accumulated_color / (float)ray_gen_data.frame_number;
-    //vec3f gamma_corrected = vec3f(sqrtf(averaged_color.x), sqrtf(averaged_color.y), sqrtf(averaged_color.z));
 
     float4 float4_val;
     float4_val.x = averaged_color.x;
@@ -393,20 +422,26 @@ extern "C" __global__ void __raygen__ray_gen()
     float4_val.w = 1.0f;
 
     float4 final_normal_f4;
-    final_normal_f4.x = final_normal.x / (float)NUM_SAMPLE_PER_PIXEL;
-    final_normal_f4.y = final_normal.y / (float)NUM_SAMPLE_PER_PIXEL;
-    final_normal_f4.z = final_normal.z / (float)NUM_SAMPLE_PER_PIXEL;
+    final_normal_f4.x = sum_normal.x / (float)NUM_SAMPLE_PER_PIXEL;
+    final_normal_f4.y = sum_normal.y / (float)NUM_SAMPLE_PER_PIXEL;
+    final_normal_f4.z = sum_normal.z / (float)NUM_SAMPLE_PER_PIXEL;
     final_normal_f4.w = 1.0f;
 
+    float4 normal_remapped = final_normal_f4;
+    if (normal_remapped.x != 0.0f && normal_remapped.y != 0.0f && normal_remapped.z != 0.0f)
+    {
+        normal_remapped.x = (normal_remapped.x + 1.0f) * 0.5;
+        normal_remapped.y = (normal_remapped.y + 1.0f) * 0.5;
+        normal_remapped.z = (normal_remapped.z + 1.0f) * 0.5;
+    }
+
     float4 final_albedo_f4;
-    final_albedo_f4.x = final_albedo.x / (float)NUM_SAMPLE_PER_PIXEL;
-    final_albedo_f4.y = final_albedo.y / (float)NUM_SAMPLE_PER_PIXEL;
-    final_albedo_f4.z = final_albedo.z / (float)NUM_SAMPLE_PER_PIXEL;
+    final_albedo_f4.x = sum_albedo.x / (float)NUM_SAMPLE_PER_PIXEL;
+    final_albedo_f4.y = sum_albedo.y / (float)NUM_SAMPLE_PER_PIXEL;
+    final_albedo_f4.z = sum_albedo.z / (float)NUM_SAMPLE_PER_PIXEL;
     final_albedo_f4.w = 1.0f;
 
     ray_gen_data.float_frame_buffer[pixel_index] = float4_val;
-    ray_gen_data.normal_buffer[pixel_index] = final_normal_f4;
+    ray_gen_data.normal_buffer[pixel_index] = normal_remapped;
     ray_gen_data.albedo_buffer[pixel_index] = final_albedo_f4;
-    //make_rgba clamps between 0 and 255
-    ray_gen_data.frame_buffer[pixel_index] = make_rgba(averaged_color);
 }
