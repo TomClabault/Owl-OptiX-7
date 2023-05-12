@@ -4,18 +4,25 @@
 #include <owl/owl.h>
 #include <owl/common/math/vec.h>
 
+#include "shaderMaterials.h"
 #include "texture_types.h"
 
 using namespace owl;
 
-struct RayGenData
+struct LaunchParams
 {
     OptixTraversableHandle scene;
 
-    vec2i frame_buffer_size;
-    uint32_t* frame_buffer;
     vec3f* accumulation_buffer;
     unsigned int frame_number;
+
+    CookTorranceMaterial obj_material;
+};
+
+struct RayGenData
+{
+    vec2i frame_buffer_size;
+    uint32_t* frame_buffer;
 
     struct
     {

@@ -1,8 +1,8 @@
-#include "viewer.h"
+#include "imGuiViewer.h"
 
 int main()
 {
-    Viewer viewer;
+    ImGuiViewer viewer;
 
     viewer.enableInspectMode();
     viewer.showAndRun();

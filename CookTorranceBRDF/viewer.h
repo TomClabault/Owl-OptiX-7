@@ -1,4 +1,5 @@
 #include "cudaBuffer.h"
+#include "imgui.h"
 #include "owl/owl.h"
 #include "owlViewer/OWLViewer.h"
 

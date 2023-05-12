@@ -13,6 +13,8 @@
 
 using namespace owl;
 
+__constant__ LaunchParams optixLaunchParams;
+
 enum ScatterState
 {
     BOUNCED,
@@ -72,8 +74,8 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     unsigned int pixel_index = pixel_ID.y * ray_gen_data.frame_buffer_size.x + pixel_ID.x;
 
     PerRayData prd;
-    prd.random.init(pixel_ID.x * ray_gen_data.frame_number * ray_gen_data.frame_buffer_size.x * NUM_SAMPLE_PER_PIXEL,
-                    pixel_ID.y * ray_gen_data.frame_number * ray_gen_data.frame_buffer_size.y * NUM_SAMPLE_PER_PIXEL);
+    prd.random.init(pixel_ID.x * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.x * NUM_SAMPLE_PER_PIXEL,
+                    pixel_ID.y * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.y * NUM_SAMPLE_PER_PIXEL);
 
     vec3f sum_samples_color = vec3f(0.0f);
     vec3f ray_origin = ray_gen_data.camera.position;
@@ -86,7 +88,7 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
         for (int depth = 0; depth < MAX_RECURSION_DEPTH; depth++)
         {
             Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);
-            traceRay(ray_gen_data.scene, ray, prd);
+            traceRay(optixLaunchParams.scene, ray, prd);
 
             sample_color *= prd.attenuation;
 
@@ -104,11 +106,11 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
 
     vec3f averaged_color = clamp(sum_samples_color / (float)NUM_SAMPLE_PER_PIXEL, vec3f(0.0f), vec3f(1.0f));
 
-    if (ray_gen_data.frame_number == 1)
-        ray_gen_data.accumulation_buffer[pixel_index] = vec3f(0.0f);
-    ray_gen_data.accumulation_buffer[pixel_index] += averaged_color;
+    if (optixLaunchParams.frame_number == 1)
+        optixLaunchParams.accumulation_buffer[pixel_index] = vec3f(0.0f);
+    optixLaunchParams.accumulation_buffer[pixel_index] += averaged_color;
 
-    vec3f accumulated_color = ray_gen_data.accumulation_buffer[pixel_index] / (float)ray_gen_data.frame_number;
+    vec3f accumulated_color = optixLaunchParams.accumulation_buffer[pixel_index] / (float)optixLaunchParams.frame_number;
     vec3f gamma_corrected = vec3f(sqrtf(accumulated_color.x),
                                   sqrtf(accumulated_color.y),
                                   sqrtf(accumulated_color.z));
@@ -133,7 +135,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
                                   + v * normal_c
                                     + (1 - - u - v) * normal_a);
 
-    CookTorranceMaterial material = triangle_data.materials[triangle_data.materials_indices[primitive_index]];
+    CookTorranceMaterial material = optixLaunchParams.obj_material;
 
     vec3f ray_origin = optixGetWorldRayOrigin();
     vec3f ray_direction = optixGetWorldRayDirection();

@@ -8,7 +8,7 @@
 
 using namespace owl;
 
-class OBJUtils
+class Utils
 {
 public:
     /**
@@ -25,6 +25,8 @@ public:
     static void read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normal_indices, std::vector<CookTorranceMaterial>& materials, std::vector<int>& materials_indices);
 
     static void read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<CookTorranceMaterial>& materials, std::vector<int>& materials_indices);
+
+    static float* read_image( const char *filename, int& width, int& height, const bool flipY);
 };
 
 #endif

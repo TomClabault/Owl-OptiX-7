@@ -15,19 +15,33 @@ embed_ptx(
 )
 
 add_executable(CookTorranceBRDF main.cpp
-                                objUtils.cpp
+                                utils.cpp
                                 viewer.cpp
 
                                 cookTorrance.h
                                 cudaBuffer.h
                                 geometriesData.h
-                                objUtils.h
+                                utils.h
                                 optix7.h
                                 shader.h
                                 shaderMaterials.h
-                                viewer.h)
+                                viewer.h
+
+                                imGuiViewer.h
+                                imGuiViewer.cpp
+
+                                imgui/imgui.cpp
+                                imgui/imgui_draw.cpp
+                                imgui/imgui_tables.cpp
+                                imgui/imgui_widgets.cpp
+                                imgui/imgui_demo.cpp
+                                imgui/backends/imgui_impl_glfw.cpp
+                                imgui/backends/imgui_impl_opengl3.cpp
+                                imgui/backends/imgui_impl_win32.cpp)
 
 include_directories(".")
+include_directories("./imgui")
+include_directories("./imgui/backends")
 
 target_link_libraries(CookTorranceBRDF
     CookTorranceBRDF-ptx

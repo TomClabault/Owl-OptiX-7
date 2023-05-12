@@ -1,4 +1,7 @@
-#include "objUtils.h"
+#include "utils.h"
+
+//#define STB_IMAGE_IMPELMENTATION already defined in viewer.cpp
+#include "stb/stb_image.h"
 
 float angle(const vec3f& vec_a, const vec3f& vec_b)
 {
@@ -39,7 +42,7 @@ std::vector<vec3f> compute_smooth_normals(const std::vector<vec3i>& indices, con
     return smooth_normals;
 }
 
-void OBJUtils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<CookTorranceMaterial>& materials, std::vector<int>& materials_indices)
+void Utils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<CookTorranceMaterial>& materials, std::vector<int>& materials_indices)
 {
     rapidobj::Result mesh_data = rapidobj::ParseFile(filepath);
     rapidobj::Triangulate(mesh_data);
@@ -80,7 +83,6 @@ void OBJUtils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3
         CookTorranceMaterial cook_torrance_material;
         cook_torrance_material.albedo = vec3f(material.diffuse[0], material.diffuse[1], material.diffuse[2]);
         cook_torrance_material.metallic = material.metallic;
-        //cook_torrance_material.reflectance = material.
         cook_torrance_material.roughness = material.roughness;
 
         materials.push_back(cook_torrance_material);
@@ -106,10 +108,26 @@ void OBJUtils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3
     }
 }
 
-void OBJUtils::read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normal_indices, std::vector<CookTorranceMaterial>& materials, std::vector<int>& materials_indices)
+void Utils::read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normal_indices, std::vector<CookTorranceMaterial>& materials, std::vector<int>& materials_indices)
 {
     read_obj_no_vertex_normals(filepath, indices, vertices, materials, materials_indices);
 
     vertex_normals = compute_smooth_normals(indices, vertices);
     vertex_normal_indices = indices;
+}
+
+float* Utils::read_image( const char *filename, int& width, int& height, const bool flipY)
+{
+    stbi_set_flip_vertically_on_load(flipY);
+
+    int channels;
+    float *data= stbi_loadf(filename, &width, &height, &channels, 4);
+
+    if(!data)
+    {
+        printf("[error] loading '%s'...\n%s\n", filename, stbi_failure_reason());
+        return {};
+    }
+
+    return data;
 }

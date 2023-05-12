@@ -17,6 +17,7 @@ inline float __device__ d_GGX(float NdotH, float roughness)
 {
     float alpha = roughness * roughness;
     float alpha2 = alpha * alpha;
+    alpha2 = max(alpha2, 0.01f);
 
     float denom = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
 

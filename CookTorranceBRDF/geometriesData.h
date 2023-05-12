@@ -25,9 +25,6 @@ struct SmoothNormalsTriangleData
 struct CookTorranceTriangleData
 {
     SmoothNormalsTriangleData triangle_data;
-
-    int* materials_indices;
-    CookTorranceMaterial* materials;
 };
 
 struct DiffuseTriangleData
