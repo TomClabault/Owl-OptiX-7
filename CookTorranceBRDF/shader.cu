@@ -1,14 +1,15 @@
-#include <cuda_device_launch_parameters.h>
-
+#include <device_launch_parameters.h>
 #include <owl/owl_device.h>
+#include <optix.h>
 
 #include "cookTorrance.h"
 #include "geometriesData.h"
+#include "optix_device.h"
 #include "owl/common/math/random.h"
 #include "shader.h"
 
 #define NUM_SAMPLE_PER_PIXEL 1
-#define MAX_RECURSION_DEPTH 15
+#define MAX_RECURSION_DEPTH 1500
 
 using namespace owl;
 
@@ -21,11 +22,15 @@ enum ScatterState
 
 struct PerRayData
 {
-    OptixTraversableHandle scene;
+    vec3f attenuation;
 
-    vec3f color;
+    struct
+    {
+        vec3f origin;
+        vec3f direction;
 
-    int current_depth = 0;
+        ScatterState state;
+    } scatter;
 
     owl::common::LCG<4> random;
 };
@@ -44,18 +49,20 @@ vec3f __device__ random_in_hemisphere(PerRayData& prd, const vec3f& normal)
         return random_in_sphere;
 }
 
-vec3f __device__ trace_path(OptixTraversableHandle scene, PerRayData& prd, const Ray& ray)
+vec3f __device__ perfect_reflect_direction(const vec3f& incident_ray, const vec3f& normal)
 {
-    vec2i launch_index = getLaunchIndex();
-    if (launch_index.x == 0 && launch_index.y == 0)
-        printf("current depth: %d\n", prd.current_depth);
-    if (prd.current_depth == MAX_RECURSION_DEPTH)
-        return vec3f(1.0f);//Returning 1.0f because this is going to be multiplied so we don't want to multiply by vec3f(0.0f)
+    return normalize(incident_ray - 2 * dot(incident_ray, normal) * normal);
+}
 
-    prd.current_depth = prd.current_depth + 1;
-    traceRay(scene, ray, prd);
+void inline __device__ metal_scatter(PerRayData& prd, const vec3f& hit_point, const vec3f& ray_direction, const vec3f& normal, float roughness, const vec3f& albedo)
+{
+    prd.scatter.origin = hit_point + normal * 1.0e-4f;
+    vec3f perfect_reflection_target = perfect_reflect_direction(ray_direction, normal) + hit_point;
+    //Lerping between fuzzy target direction and perfect reflection
+    prd.scatter.direction = normalize((1.0f - roughness) * perfect_reflection_target + (roughness) * (random_in_hemisphere(prd, normal) + hit_point) - hit_point);
+    prd.attenuation = albedo;
 
-    return prd.color;
+    prd.scatter.state = ScatterState::BOUNCED;
 }
 
 OPTIX_RAYGEN_PROGRAM(ray_gen)()
@@ -67,31 +74,46 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     PerRayData prd;
     prd.random.init(pixel_ID.x * ray_gen_data.frame_number * ray_gen_data.frame_buffer_size.x * NUM_SAMPLE_PER_PIXEL,
                     pixel_ID.y * ray_gen_data.frame_number * ray_gen_data.frame_buffer_size.y * NUM_SAMPLE_PER_PIXEL);
-    prd.scene = ray_gen_data.scene;
 
-    vec3f ray_origin = ray_gen_data.camera.position;
     vec3f sum_samples_color = vec3f(0.0f);
+    vec3f ray_origin = ray_gen_data.camera.position;
+    vec3f ray_direction = normalize(ray_gen_data.camera.direction_00
+                + ray_gen_data.camera.direction_dx * (prd.random() + pixel_ID.x) / (float)ray_gen_data.frame_buffer_size.x
+                + ray_gen_data.camera.direction_dy * (prd.random() + pixel_ID.y) / (float)ray_gen_data.frame_buffer_size.y);
     for (int sample = 0; sample < NUM_SAMPLE_PER_PIXEL; sample++)
     {
-        vec3f ray_direction = normalize(ray_gen_data.camera.direction_00
-                                        + ray_gen_data.camera.direction_dx * (prd.random() + pixel_ID.x) / (float)ray_gen_data.frame_buffer_size.x
-                                        + ray_gen_data.camera.direction_dy * (prd.random() + pixel_ID.y) / (float)ray_gen_data.frame_buffer_size.y);
+        vec3f sample_color = vec3f(1.0f);
+        for (int depth = 0; depth < MAX_RECURSION_DEPTH; depth++)
+        {
+            Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);
+            traceRay(ray_gen_data.scene, ray, prd);
 
-        Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);
-        sum_samples_color += trace_path(ray_gen_data.scene, prd, ray);
+            sample_color *= prd.attenuation;
+
+            if (prd.scatter.state == ScatterState::BOUNCED)
+            {
+                ray_origin = prd.scatter.origin;
+                ray_direction = prd.scatter.direction;
+            }
+            else if (prd.scatter.state == ScatterState::MISSED || prd.scatter.state == ScatterState::TERMINATED)
+                break;
+        }
+
+        sum_samples_color += sample_color;
     }
 
     vec3f averaged_color = clamp(sum_samples_color / (float)NUM_SAMPLE_PER_PIXEL, vec3f(0.0f), vec3f(1.0f));
-//    vec3f gamma_corrected = vec3f(sqrtf(averaged_color.x),
-//                                  sqrtf(averaged_color.y),
-//                                  sqrtf(averaged_color.z));
-    vec3f gamma_corrected = averaged_color;
 
     if (ray_gen_data.frame_number == 1)
         ray_gen_data.accumulation_buffer[pixel_index] = vec3f(0.0f);
-    ray_gen_data.accumulation_buffer[pixel_index] += gamma_corrected;
+    ray_gen_data.accumulation_buffer[pixel_index] += averaged_color;
 
-    ray_gen_data.frame_buffer[pixel_index] = make_rgba(ray_gen_data.accumulation_buffer[pixel_index] / (float)ray_gen_data.frame_number);
+    vec3f accumulated_color = ray_gen_data.accumulation_buffer[pixel_index] / (float)ray_gen_data.frame_number;
+    vec3f gamma_corrected = vec3f(sqrtf(accumulated_color.x),
+                                  sqrtf(accumulated_color.y),
+                                  sqrtf(accumulated_color.z));
+
+    ray_gen_data.frame_buffer[pixel_index] = make_rgba(gamma_corrected);
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
@@ -109,7 +131,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
     vec3f smooth_normal = normalize(u * normal_b
                                   + v * normal_c
-                                  + (1 - - u - v) * normal_a);
+                                    + (1 - - u - v) * normal_a);
 
     CookTorranceMaterial material = triangle_data.materials[triangle_data.materials_indices[primitive_index]];
 
@@ -119,21 +141,27 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     float hit_t = optixGetRayTmax();
     vec3f hit_point = ray_origin + hit_t * ray_direction;
 
-    vec3f next_origin = hit_point + 1.0e-5f * smooth_normal;
-    vec3f next_direction = normalize(random_in_hemisphere(prd, smooth_normal));
-
-    Ray next_ray(next_origin, next_direction, 1.0e-3f, 1.0e10f);
-
-    prd.color *= cook_torrance_brdf(material, -ray_direction, next_direction, smooth_normal);//BRDF
-    prd.color *= trace_path(prd.scene, prd, next_ray);//Incoming light Li
-    //prd.color *= dot(smooth_normal, next_direction);//Cosine weight
+    metal_scatter(prd, hit_point, ray_direction, smooth_normal, material.roughness, material.albedo);
+    prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, smooth_normal);//BRDF
+    prd.scatter.state = ScatterState::BOUNCED;
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(floor_triangle)()
 {
     PerRayData& prd = getPRD<PerRayData>();
 
-    prd.color = vec3f(0.0f);
+    //This the floor, we know the normal
+    vec3f normal = vec3f(0.0f, 1.0f, 0.0f);
+
+    float hit_t = optixGetRayTmax();
+    vec3f ray_origin = optixGetWorldRayOrigin();
+    vec3f ray_direction = optixGetWorldRayDirection();
+    vec3f hit_point = ray_origin + hit_t * ray_direction;
+
+    prd.attenuation = vec3f(0.8f, 0.8f, 0.8f);
+    prd.scatter.origin = hit_point + 1.0e-5f * normal;
+    prd.scatter.direction = normalize(random_in_hemisphere(prd, normal));
+    prd.scatter.state = ScatterState::BOUNCED;
 }
 
 OPTIX_MISS_PROGRAM(miss)()
@@ -150,5 +178,6 @@ OPTIX_MISS_PROGRAM(miss)()
     float4 texel = tex2D<float4>(miss_data.skysphere, u, v);
     vec3f skysphere_color = vec3f(texel.x, texel.y, texel.z);
 
-    prd.color = skysphere_color;
+    prd.attenuation = skysphere_color;
+    prd.scatter.state = ScatterState::MISSED;
 }

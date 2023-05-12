@@ -8,7 +8,6 @@
 
 using namespace owl;
 
-#ifdef __CUDACC__
 inline vec3f __device__ schlick_approximation(float cos_theta, const vec3f& F0)
 {
     return F0 + (1.0f - F0) * powf((1.0f - cos_theta), 5.0f);
@@ -40,12 +39,12 @@ inline float __device__ g_smith(float NdotV, float NdotL, float roughness)
 
 inline vec3f __device__ cook_torrance_brdf(const CookTorranceMaterial& material, const vec3f& view_dir, const vec3f& outgoing_light_dir, const vec3f& normal)
 {
-    vec3f H = normalize(view_dir + outgoing_light_dir);
+    vec3f halfway_vector = normalize(view_dir + outgoing_light_dir);
 
     float NoV = clamp(dot(normal, view_dir),            0.0f, 1.0f);
     float NoL = clamp(dot(normal, outgoing_light_dir),  0.0f, 1.0f);
-    float NoH = clamp(dot(normal, H),                   0.0f, 1.0f);
-    float VoH = clamp(dot(view_dir, H),                 0.0f, 1.0f);
+    float NoH = clamp(dot(normal, halfway_vector),      0.0f, 1.0f);
+    float VoH = clamp(dot(view_dir, halfway_vector),    0.0f, 1.0f);
 
     //Fresnel reflectance when perpendicular to the surface for dielectrics.
     //Goes from 0.04 to 0.16 which is 4% to 16% depending on the reflectance
@@ -69,6 +68,5 @@ inline vec3f __device__ cook_torrance_brdf(const CookTorranceMaterial& material,
 
     return specular_term + diffuse_term;
 }
-#endif //CUDACC
 
 #endif

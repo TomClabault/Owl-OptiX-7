@@ -36,7 +36,8 @@ Viewer::Viewer()
     owlRayGenSet1ui(m_rayGen, "frame_number", 1);
     owlRayGenSet1ul(m_rayGen, "accumulation_buffer", (uint64_t)m_accumulation_buffer.d_pointer());
 
-    OWLGroup triangle_group = create_cook_torrance_obj_group("../../common_data/bunny_translated.obj");
+    //OWLGroup triangle_group = create_cook_torrance_obj_group("../../common_data/bunny_translated.obj");
+    OWLGroup triangle_group = create_cook_torrance_obj_group("D:\\Bureau\\Repos\\M1\\m-1-synthese\\tp2\\data\\xyzrgb_dragon.obj");
     OWLGroup floor_group = create_floor_group();
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 2);
@@ -74,9 +75,9 @@ OWLGroup Viewer::create_cook_torrance_obj_group(const char* obj_file_path)
     OBJUtils::read_obj(obj_file_path, indices, vertices, vertex_normals, vertex_normals_indices, materials, materials_indices);
     //Artificially modifying the material for debugging
     materials[0].albedo = vec3f(1.0f, 0.0f, 0.0f);
-    materials[0].metallic = 1.0f;
-    materials[0].reflectance = 1.0f;
-    materials[0].roughness = 0.0f;
+    materials[0].metallic = 0.75f;
+    materials[0].reflectance = 0.5f;
+    materials[0].roughness = 0.1f;
 
     OWLVarDecl triangleGeometryVars[] = {
         { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(CookTorranceTriangleData, triangle_data.indices)},
