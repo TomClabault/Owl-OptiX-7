@@ -17,7 +17,7 @@ inline float __device__ d_GGX(float NdotH, float roughness)
 {
     float alpha = roughness * roughness;
     float alpha2 = alpha * alpha;
-    alpha2 = max(alpha2, 0.01f);
+    //alpha2 = max(alpha2, 0.05f);
 
     float denom = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
 
@@ -42,6 +42,9 @@ inline vec3f __device__ cook_torrance_brdf(const CookTorranceMaterial& material,
 {
     vec3f halfway_vector = normalize(view_dir + outgoing_light_dir);
 
+    //roughness to pure 0.0f can cause visual unpleasant issues
+    float roughness = max(material.roughness, 0.001f);
+
     float NoV = clamp(dot(normal, view_dir),            0.0f, 1.0f);
     float NoL = clamp(dot(normal, outgoing_light_dir),  0.0f, 1.0f);
     float NoH = clamp(dot(normal, halfway_vector),      0.0f, 1.0f);
@@ -58,8 +61,8 @@ inline vec3f __device__ cook_torrance_brdf(const CookTorranceMaterial& material,
     F0 = (1.0f - material.metallic) * F0 + material.metallic * material.albedo;
 
     vec3f fresnel_term = schlick_approximation(VoH, F0);//Reflected portion of the light (1 - transmitted)
-    vec3f normal_distribution_term = d_GGX(NoH, material.roughness);
-    vec3f geometry_term = g_smith(NoV, NoL, material.roughness);
+    vec3f normal_distribution_term = d_GGX(NoH, roughness);
+    vec3f geometry_term = g_smith(NoV, NoL, roughness);
 
     //max() to prevent division by zero
     vec3f specular_term = (fresnel_term * normal_distribution_term * geometry_term) / (4 * max(NoV, 0.0001f) * max(NoL, 0.0001f));

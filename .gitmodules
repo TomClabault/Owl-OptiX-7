@@ -1,3 +1,6 @@
 [submodule "owl"]
 	path = owl
 	url = https://github.com/owl-project/owl
+[submodule "imgui"]
+	path = imgui
+	url = https://github.com/ocornut/imgui.git
