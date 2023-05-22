@@ -21,6 +21,7 @@ ImGuiViewer::ImGuiViewer()
     setTitle("CookTorranceBRDF");
 
     m_owl = owlContextCreate(nullptr,1);
+    owlContextSetRayTypeCount(m_owl, 2);
     m_module = owlModuleCreate(m_owl, shader_ptx);
 
     OWLVarDecl rayGenVars[] = {
@@ -38,8 +39,7 @@ ImGuiViewer::ImGuiViewer()
 
     OWLGroup bunny_group = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
     OWLGroup dragon_group = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
-    //OWLGroup triangle_group = create_cook_torrance_obj_group("D:\\Bureau\\Repos\\M1\\m-1-synthese\\tp2\\data\\xyzrgb_dragon.obj");
-    OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell-box.obj");
+    OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell_blocked.obj");
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
     owlInstanceGroupSetChild(scene, 0, bunny_group);
@@ -57,6 +57,10 @@ ImGuiViewer::ImGuiViewer()
     //load_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
     //OWLTexture skysphere = owlTexture2DCreate(m_owl, OWL_TEXEL_FORMAT_RGBA8, m_skysphere_width, m_skysphere_height, m_skysphere.data());
     owlMissProgSetTexture(miss_program, "skysphere", nullptr);
+
+    //Creating the miss program for the shadow rays. This program doesn't have variables or data.
+    OWLMissProg shadow_ray_miss_prog = owlMissProgCreate(m_owl, m_module, "shadow_ray_miss", 0, nullptr, 0);
+    owlMissProgSet(m_owl, SHADOW_RAY, shadow_ray_miss_prog);
 
     OWLVarDecl launch_params_vars[] = {
         { "scene",                  OWL_GROUP, OWL_OFFSETOF(LaunchParams, scene) },
@@ -160,7 +164,7 @@ OWLGroup ImGuiViewer::create_lambertian_group(const char* obj_file_path)
     };
 
     OWLGeomType triangle_geometry_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(LambertianTriangleData), triangle_geometry_vars, -1);
-    owlGeomTypeSetClosestHit(triangle_geometry_type, 0, m_module, "lambertian_triangle");
+    owlGeomTypeSetClosestHit(triangle_geometry_type, RADIANCE_RAY, m_module, "lambertian_triangle");
 
     OWLBuffer triangles_indices_buffer = owlDeviceBufferCreate(m_owl,           OWL_INT3, indices.size(), indices.data());
     OWLBuffer triangles_vertices_buffer = owlDeviceBufferCreate(m_owl,          OWL_FLOAT3, vertices.size(), vertices.data());
@@ -220,7 +224,7 @@ OWLGroup ImGuiViewer::create_cook_torrance_obj_group(const char* obj_file_path)
     };
 
     OWLGeomType triangle_geometry_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(CookTorranceTriangleData), triangle_geometry_vars, -1);
-    owlGeomTypeSetClosestHit(triangle_geometry_type, 0, m_module, "cook_torrance_obj_triangle");
+    owlGeomTypeSetClosestHit(triangle_geometry_type, RADIANCE_RAY, m_module, "cook_torrance_obj_triangle");
 
     OWLBuffer triangles_indices_buffer = owlDeviceBufferCreate(m_owl,               OWL_INT3, indices.size(), indices.data());
     OWLBuffer triangles_vertices_buffer = owlDeviceBufferCreate(m_owl,              OWL_FLOAT3, vertices.size(), vertices.data());
@@ -292,7 +296,7 @@ OWLGroup ImGuiViewer::create_floor_group()
     };
 
     OWLGeomType floor_geom_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(LambertianTriangleData), floor_vars, -1);
-    owlGeomTypeSetClosestHit(floor_geom_type, 0, m_module, "lambertian_triangle");
+    owlGeomTypeSetClosestHit(floor_geom_type, RADIANCE_RAY, m_module, "lambertian_triangle");
     OWLGeom floor_geom = owlGeomCreate(m_owl, floor_geom_type);
 
     OWLBuffer triangles_indices_buffer =  owlDeviceBufferCreate(m_owl,          OWL_INT3,                               triangles_indices.size(),       triangles_indices.data());
@@ -343,7 +347,7 @@ OWLGroup ImGuiViewer::create_emissive_triangles_group()
         };
 
     OWLGeomType emsisive_geom_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(EmissiveTriangleData), floor_vars, -1);
-    owlGeomTypeSetClosestHit(emsisive_geom_type, 0, m_module, "emissive_triangle");
+    owlGeomTypeSetClosestHit(emsisive_geom_type, RADIANCE_RAY, m_module, "emissive_triangle");
     OWLGeom emissive_geom = owlGeomCreate(m_owl, emsisive_geom_type);
 
     OWLBuffer indices_buffer =  owlDeviceBufferCreate(m_owl, OWL_INT3,   2, indices);

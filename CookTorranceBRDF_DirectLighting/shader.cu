@@ -9,11 +9,13 @@
 #include "shader.h"
 
 #define NUM_SAMPLE_PER_PIXEL 1
-#define MAX_RECURSION_DEPTH 15
+#define MAX_RECURSION_DEPTH 5
 
 using namespace owl;
 
 __constant__ LaunchParams optixLaunchParams;
+
+typedef owl::RayT<SHADOW_RAY, 2> ShadowRay;
 
 enum ScatterState
 {
@@ -25,6 +27,8 @@ enum ScatterState
 
 struct PerRayData
 {
+    vec3f normal;//TODO remove
+
     vec3f attenuation;
     vec3f emissive;
 
@@ -37,6 +41,11 @@ struct PerRayData
     } scatter;
 
     owl::common::LCG<4> random;
+};
+
+struct ShadowRayPrd
+{
+    bool obstructed = true;
 };
 
 vec3f __device__ random_in_unit_sphere(PerRayData& prd)
@@ -61,14 +70,11 @@ vec3f __device__ perfect_reflect_direction(const vec3f& incident_ray, const vec3
 void inline __device__ metal_scatter(PerRayData& prd, const vec3f& hit_point, const vec3f& ray_direction, const vec3f& normal, float roughness, const vec3f& albedo)
 {
     prd.scatter.origin = hit_point + normal * 1.0e-4f;
+
     vec3f perfect_reflection = perfect_reflect_direction(ray_direction, normal);
     vec3f fuzzy_reflection = random_in_hemisphere(prd, normal);
     //Lerping between fuzzy target direction and perfect reflection
     prd.scatter.direction = normalize((1.0f - roughness) * perfect_reflection + roughness * fuzzy_reflection);
-    prd.attenuation = albedo;
-    prd.emissive = vec3f(0.0f);
-
-    prd.scatter.state = ScatterState::BOUNCED;
 }
 
 OPTIX_RAYGEN_PROGRAM(ray_gen)()
@@ -90,25 +96,50 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     for (int sample = 0; sample < NUM_SAMPLE_PER_PIXEL; sample++)
     {
         vec3f attenuation = vec3f(1.0f);
-        vec3f emitted_light = vec3f(0.0f);
+        vec3f direct_light = vec3f(0.0f);
         for (int depth = 0; depth < MAX_RECURSION_DEPTH; depth++)
         {
-            Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);
-            traceRay(optixLaunchParams.scene, ray, prd);
+            Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);//Radiance ray
+            traceRay(optixLaunchParams.scene, ray, prd, OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES | OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-            emitted_light += prd.emissive * attenuation;
             attenuation *= prd.attenuation;
 
             if (prd.scatter.state == ScatterState::BOUNCED)
             {
+                //Adding emissive for the first ray
+                if (depth == 0)
+                    direct_light += prd.emissive * attenuation;
+
                 ray_origin = prd.scatter.origin;
                 ray_direction = prd.scatter.direction;
+
+                //If the ray hit the geometry, we're computing the direct lighting
+                const vec3f A = vec3f(-0.884011f, 5.318497, -2.517968);//0
+                const vec3f B = vec3f(0.415989f, 5.318497, -2.517968);//1
+                const vec3f C = vec3f( -0.884011f, 5.318497, -3.567968);//2
+                const vec3f D = vec3f( 0.415989f, 5.318497, -3.567968);//3
+
+                vec3f u = B - A;
+                vec3f v = C - A;
+
+                vec3f shadow_ray_origin = prd.scatter.origin;
+                vec3f point_on_light = u * prd.random() + v * prd.random() + A;
+                vec3f light_direction = normalize(point_on_light - prd.scatter.origin);
+
+                float dist = length(point_on_light - prd.scatter.origin);
+                ShadowRay shadow_ray(prd.scatter.origin, normalize(point_on_light - shadow_ray_origin), 1.0e-3f, dist -1.0e-4f);
+                ShadowRayPrd shadow_prd;
+                traceRay(optixLaunchParams.scene, shadow_ray, shadow_prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT
+                                                                        | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT);
+
+                float light_angle = dot(prd.normal, normalize(point_on_light - shadow_ray_origin));
+                direct_light += vec3f(!shadow_prd.obstructed) * light_angle * vec3f(2.0f) * attenuation;//vec3f(2.0f) is the light intensity
             }
             else if (prd.scatter.state == ScatterState::MISSED)
                 break;
         }
 
-        sum_samples_color += attenuation + emitted_light;
+        sum_samples_color += (attenuation + direct_light) / 2;
     }
 
     vec3f averaged_color = sum_samples_color / (float)NUM_SAMPLE_PER_PIXEL;
@@ -123,6 +154,7 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     vec3f gamma_corrected = vec3f(sqrtf(accumulated_color.x),
                                   sqrtf(accumulated_color.y),
                                   sqrtf(accumulated_color.z));
+
     ray_gen_data.frame_buffer[pixel_index] = make_rgba(gamma_corrected);
 }
 
@@ -135,13 +167,20 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     float2 uv = optixGetTriangleBarycentrics();
     float u = uv.x, v = uv.y;
 
-    vec3i normal_indices = triangle_data.triangle_data.vertex_normals_indices[primitive_index];
-    vec3f normal_a = triangle_data.triangle_data.vertex_normals[normal_indices.x];
-    vec3f normal_b = triangle_data.triangle_data.vertex_normals[normal_indices.y];
-    vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
-    vec3f smooth_normal = normalize(u * normal_b
-                                  + v * normal_c
-                                    + (1 - - u - v) * normal_a);
+    const vec3i& indices = triangle_data.triangle_data.indices[primitive_index];
+    const vec3f& A = triangle_data.triangle_data.vertices[indices.x];
+    const vec3f& B = triangle_data.triangle_data.vertices[indices.y];
+    const vec3f& C = triangle_data.triangle_data.vertices[indices.z];
+    vec3f normal = normalize(cross(B - A, C - A));
+
+    //Smooth normal
+//    vec3i normal_indices = triangle_data.triangle_data.vertex_normals_indices[primitive_index];
+//    vec3f normal_a = triangle_data.triangle_data.vertex_normals[normal_indices.x];
+//    vec3f normal_b = triangle_data.triangle_data.vertex_normals[normal_indices.y];
+//    vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
+//    vec3f smooth_normal = normalize(u * normal_b
+//                                  + v * normal_c
+//                                    + (1 - - u - v) * normal_a);
 
     CookTorranceMaterial material = optixLaunchParams.obj_material;
 
@@ -151,10 +190,12 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     float hit_t = optixGetRayTmax();
     vec3f hit_point = ray_origin + hit_t * ray_direction;
 
-    metal_scatter(prd, hit_point, ray_direction, smooth_normal, material.roughness, material.albedo);
-    prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, smooth_normal);//BRDF
+    metal_scatter(prd, hit_point, ray_direction, normal, material.roughness, material.albedo);
+    prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, normal);//BRDF
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::BOUNCED;
+
+    prd.normal = normal;
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(lambertian_triangle)()
@@ -180,23 +221,20 @@ OPTIX_CLOSEST_HIT_PROGRAM(lambertian_triangle)()
     vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
     vec3f smooth_normal = normalize(u * normal_b
                                     + v * normal_c
-                                    + (1 - - u - v) * normal_a);
+                                    + (1 - u - v) * normal_a);
 
     prd.emissive = mat.emissive;
     prd.attenuation = mat.albedo;
     prd.scatter.origin = hit_point + 1.0e-5f * smooth_normal;
     prd.scatter.direction = normalize(random_in_hemisphere(prd, smooth_normal));
+    prd.scatter.state = ScatterState::BOUNCED;
+    prd.normal = smooth_normal;
+}
 
-
-//    if (mat.emissive.x != 0.0f || mat.emissive.y != 0.0f || mat.emissive.z != 0.0f)
-//    {
-//        prd.emissive = mat.emissive;
-//        prd.scatter.state = ScatterState::EMITTED;
-
-//        return;
-//    }
-//    else
-        prd.scatter.state = ScatterState::BOUNCED;
+OPTIX_MISS_PROGRAM(shadow_ray_miss)()
+{
+    ShadowRayPrd& prd = getPRD<ShadowRayPrd>();
+    prd.obstructed = false;
 }
 
 OPTIX_MISS_PROGRAM(miss)()

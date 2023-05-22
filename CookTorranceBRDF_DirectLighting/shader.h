@@ -7,6 +7,9 @@
 #include "shaderMaterials.h"
 #include "texture_types.h"
 
+#define RADIANCE_RAY 0
+#define SHADOW_RAY 1
+
 using namespace owl;
 
 struct LaunchParams

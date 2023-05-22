@@ -50,9 +50,9 @@ target_link_libraries(CookTorranceBRDF_DirectLighting
 
 set_property(TARGET CookTorranceBRDF_DirectLighting PROPERTY CXX_STANDARD 17)
 
+set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use-fast-math --gpu-architecture=compute_50 --gpu-code=compute_50")
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_CUDA_FLAGS_DEBUG "-g -G")
-elseif()
-set(CMAKE_CUDA_FLAGS_RELEASE "--use-fast-math")
 endif()
 
