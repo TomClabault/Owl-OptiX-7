@@ -39,7 +39,8 @@ ImGuiViewer::ImGuiViewer()
 
     OWLGroup bunny_group = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
     OWLGroup dragon_group = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
-    OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell_blocked.obj");
+    //OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell_blocked.obj");
+    OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell-box.obj");
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
     owlInstanceGroupSetChild(scene, 0, bunny_group);

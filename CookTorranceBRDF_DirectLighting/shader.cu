@@ -9,7 +9,7 @@
 #include "shader.h"
 
 #define NUM_SAMPLE_PER_PIXEL 1
-#define MAX_RECURSION_DEPTH 5
+#define MAX_RECURSION_DEPTH 15
 
 using namespace owl;
 
@@ -97,12 +97,14 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     {
         vec3f attenuation = vec3f(1.0f);
         vec3f direct_light = vec3f(0.0f);
+        bool emissive_found = false;
         for (int depth = 0; depth < MAX_RECURSION_DEPTH; depth++)
         {
             Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);//Radiance ray
             traceRay(optixLaunchParams.scene, ray, prd, OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES | OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
             attenuation *= prd.attenuation;
+            emissive_found |= (prd.emissive.x > 0 || prd.emissive.y > 0 || prd.emissive.z > 0);
 
             if (prd.scatter.state == ScatterState::BOUNCED)
             {
@@ -139,7 +141,7 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
                 break;
         }
 
-        sum_samples_color += (attenuation + direct_light) / 2;
+        sum_samples_color += (attenuation * (emissive_found * 1.0f) + direct_light) / 2.0f;
     }
 
     vec3f averaged_color = sum_samples_color / (float)NUM_SAMPLE_PER_PIXEL;
@@ -240,7 +242,7 @@ OPTIX_MISS_PROGRAM(shadow_ray_miss)()
 OPTIX_MISS_PROGRAM(miss)()
 {
     PerRayData& prd = getPRD<PerRayData>();
-    prd.attenuation = vec3f(0.0f);
+    prd.attenuation = vec3f(1.0f);
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::MISSED;
 
