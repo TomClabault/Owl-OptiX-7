@@ -29,11 +29,11 @@ struct CookTorranceTriangleData
     SmoothNormalsTriangleData triangle_data;
 };
 
-struct LambertianTriangleData
+struct SimpleObjTriangleData
 {
     SmoothNormalsTriangleData triangle_data;
-
-    LambertianMaterial* materials;
+    
+    SimpleObjMaterial* materials;
     int* materials_indices;
 };
 

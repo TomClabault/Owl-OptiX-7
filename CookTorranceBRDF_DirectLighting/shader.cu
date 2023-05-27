@@ -76,14 +76,21 @@ inline vec3f __device__ perfect_reflect_direction(const vec3f& incident_ray, con
     return normalize(incident_ray - 2 * dot(incident_ray, normal) * normal);
 }
 
-void inline __device__ metal_scatter(PerRayData& prd, const vec3f& hit_point, const vec3f& ray_direction, const vec3f& normal, float roughness, const vec3f& albedo)
+vec3f inline __device__ roughness_scatter(PerRayData& prd, const vec3f& hit_point, const vec3f& ray_direction, const vec3f& normal, float roughness)
 {
-    prd.scatter.origin = hit_point + normal * 1.0e-4f;
-
     vec3f perfect_reflection = perfect_reflect_direction(ray_direction, normal);
     vec3f fuzzy_reflection = random_in_hemisphere(prd, normal);
     //Lerping between fuzzy target direction and perfect reflection
-    prd.scatter.direction = normalize((1.0f - roughness) * perfect_reflection + roughness * fuzzy_reflection);
+    return normalize((1.0f - roughness) * perfect_reflection + roughness * fuzzy_reflection);
+}
+
+vec3f inline __device__ ns_scatter(PerRayData& prd, const vec3f& hit_point, const vec3f& ray_direction, const vec3f& normal, float ns)
+{
+    vec3f perfect_reflection = perfect_reflect_direction(ray_direction, normal);
+    vec3f fuzzy_reflection = random_in_hemisphere(prd, normal);
+    //Lerping between fuzzy target direction and perfect reflection
+    ns /= 1000.0f;
+    return normalize((1.0f - ns) * fuzzy_reflection + ns * perfect_reflection);
 }
 
 OPTIX_RAYGEN_PROGRAM(ray_gen)()
@@ -93,7 +100,7 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     unsigned int pixel_index = pixel_ID.y * ray_gen_data.frame_buffer_size.x + pixel_ID.x;
 
     //This is going to be useful to get the triangles when sampling direct lighting
-    const LambertianTriangleData& lambertian_triangle_data = getProgramData<LambertianTriangleData>();
+    const SimpleObjTriangleData& lambertian_triangle_data = getProgramData<SimpleObjTriangleData>();
 
     PerRayData prd;
     prd.random.init(pixel_ID.x * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.x * NUM_SAMPLE_PER_PIXEL,
@@ -202,7 +209,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     float hit_t = optixGetRayTmax();
     vec3f hit_point = ray_origin + hit_t * ray_direction;
 
-    metal_scatter(prd, hit_point, ray_direction, smooth_normal, material.roughness, material.albedo);
+    prd.scatter.origin = hit_point + smooth_normal * 1.0e-5f;
+    prd.scatter.direction = roughness_scatter(prd, hit_point, ray_direction, smooth_normal, material.roughness);
     prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, smooth_normal);
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::BOUNCED;
@@ -213,11 +221,11 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
 OPTIX_CLOSEST_HIT_PROGRAM(lambertian_triangle)()
 {
     PerRayData& prd = getPRD<PerRayData>();
-    LambertianTriangleData triangle_data = getProgramData<LambertianTriangleData>();
+    SimpleObjTriangleData triangle_data = getProgramData<SimpleObjTriangleData>();
 
     int primitive_index = optixGetPrimitiveIndex();
     int material_index = triangle_data.materials_indices[primitive_index];
-    LambertianMaterial mat = triangle_data.materials[material_index];
+    SimpleObjMaterial mat = triangle_data.materials[material_index];
 
     float hit_t = optixGetRayTmax();
     vec3f ray_origin = optixGetWorldRayOrigin();
@@ -238,7 +246,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(lambertian_triangle)()
     prd.emissive = mat.emissive;
     prd.attenuation = mat.albedo;
     prd.scatter.origin = hit_point + 1.0e-5f * smooth_normal;
-    prd.scatter.direction = normalize(random_in_hemisphere(prd, smooth_normal));
+    prd.scatter.direction = ns_scatter(prd, hit_point, ray_direction, smooth_normal, mat.ns);
     prd.scatter.state = ScatterState::BOUNCED;
     prd.normal = smooth_normal;
 }

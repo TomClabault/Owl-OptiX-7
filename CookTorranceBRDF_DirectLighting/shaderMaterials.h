@@ -5,10 +5,12 @@
 
 using namespace owl;
 
-struct LambertianMaterial
+struct SimpleObjMaterial
 {
     vec3f albedo;
     vec3f emissive;
+
+    float ns;
 };
 
 struct CookTorranceMaterial

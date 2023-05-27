@@ -35,15 +35,15 @@ ImGuiViewer::ImGuiViewer()
     };
 
     m_ray_gen = owlRayGenCreate(m_owl, m_module, "ray_gen", sizeof(RayGenData), rayGenVars, -1);
-    camera.setOrientation(vec3f(-1.151349, 3.970956, 9.470657), vec3f(-1.147143, 3.817521, 8.482509), normalize(vec3f(0.0f, 1.0f, 0.0f)), 60);
+    //camera.setOrientation(vec3f(-1.151349, 3.970956, 9.470657), vec3f(-1.147143, 3.817521, 8.482509), normalize(vec3f(0.0f, 1.0f, 0.0f)), 60);
 
     OWLGroup bunny_group = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
     OWLGroup dragon_group = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
 
-    //OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell_blocked.obj");
-    OWLBuffer lambertian_indices, lambertian_vertices;
+    OWLBuffer obj_indices, obj_vertices;
     EmissiveTrianglesInfo emissive_triangles_info;
-    OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell-box.obj", emissive_triangles_info, &lambertian_indices, &lambertian_vertices);
+    //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &lambertian_indices, &lambertian_vertices);
+    OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices);
     m_emissive_triangles_info = emissive_triangles_info;
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
@@ -85,8 +85,8 @@ ImGuiViewer::ImGuiViewer()
     owlParamsSet1ul(m_launch_params, "accumulation_buffer", (uint64_t)m_accumulation_buffer.d_pointer());
     owlParamsSetGroup(m_launch_params, "scene", scene);
     owlParamsSetRaw(m_launch_params, "emissive_triangles_info", &m_emissive_triangles_info);
-    owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_indices", lambertian_indices);
-    owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_vertices", lambertian_vertices);
+    owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_indices", obj_indices);
+    owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_vertices", obj_vertices);
 
     owlBuildPrograms(m_owl);
     owlBuildPipeline(m_owl);
@@ -143,7 +143,7 @@ void ImGuiViewer::setupImGUI()
     ImGui_ImplOpenGL3_Init("#version 130");
 }
 
-OWLGroup ImGuiViewer::create_lambertian_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices)
+OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices)
 {
     std::vector<vec3i> indices;
     std::vector<vec3f> vertices;
@@ -154,34 +154,35 @@ OWLGroup ImGuiViewer::create_lambertian_group(const char* obj_file_path, Emissiv
 
     Utils::read_obj(obj_file_path, indices, vertices, vertex_normals, vertex_normals_indices, obj_materials, materials_indices);
 
-    std::vector<LambertianMaterial> lambertian_materials;
+    std::vector<SimpleObjMaterial> simple_obj_materials;
     for (rapidobj::Material& mat : obj_materials)
     {
-        LambertianMaterial lambertian_mat;
-        lambertian_mat.albedo = *((vec3f*)&mat.diffuse);
-        lambertian_mat.emissive = *((vec3f*)&mat.emission);
+        SimpleObjMaterial obj_mat;
+        obj_mat.albedo = *((vec3f*)&mat.diffuse);
+        obj_mat.emissive = *((vec3f*)&mat.emission);
+        obj_mat.ns = mat.shininess;
 
-        lambertian_materials.push_back(lambertian_mat);
+        simple_obj_materials.push_back(obj_mat);
     }
 
     OWLVarDecl triangle_geometry_vars[] = {
-        { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, triangle_data.indices)},
-        { "triangle_data.vertices",                 OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, triangle_data.vertices)},
-        { "triangle_data.vertex_normals",           OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, triangle_data.vertex_normals)},
-        { "triangle_data.vertex_normals_indices",   OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, triangle_data.vertex_normals_indices)},
-        { "materials",                              OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, materials)},
-        { "materials_indices",                      OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, materials_indices)},
+        { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.indices)},
+        { "triangle_data.vertices",                 OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertices)},
+        { "triangle_data.vertex_normals",           OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_normals)},
+        { "triangle_data.vertex_normals_indices",   OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_normals_indices)},
+        { "materials",                              OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, materials)},
+        { "materials_indices",                      OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, materials_indices)},
         { /* sentinel */ }
     };
 
-    OWLGeomType triangle_geometry_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(LambertianTriangleData), triangle_geometry_vars, -1);
+    OWLGeomType triangle_geometry_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(SimpleObjTriangleData), triangle_geometry_vars, -1);
     owlGeomTypeSetClosestHit(triangle_geometry_type, RADIANCE_RAY, m_module, "lambertian_triangle");
 
     OWLBuffer triangles_indices_buffer = owlDeviceBufferCreate(m_owl,           OWL_INT3, indices.size(), indices.data());
     OWLBuffer triangles_vertices_buffer = owlDeviceBufferCreate(m_owl,          OWL_FLOAT3, vertices.size(), vertices.data());
     OWLBuffer triangles_normals_buffer = owlDeviceBufferCreate(m_owl,           OWL_FLOAT3, vertex_normals.size(), vertex_normals.data());
     OWLBuffer triangles_normals_indices_buffer = owlDeviceBufferCreate(m_owl,   OWL_INT3, vertex_normals_indices.size(), vertex_normals_indices.data());
-    OWLBuffer triangles_materials_buffer = owlDeviceBufferCreate(m_owl,         OWL_USER_TYPE(lambertian_materials[0]), lambertian_materials.size(), lambertian_materials.data());
+    OWLBuffer triangles_materials_buffer = owlDeviceBufferCreate(m_owl,         OWL_USER_TYPE(obj_materials[0]), simple_obj_materials.size(), simple_obj_materials.data());
     OWLBuffer triangles_materials_indices_buffer = owlDeviceBufferCreate(m_owl, OWL_INT, materials_indices.size(), materials_indices.data());
 
 
@@ -290,9 +291,9 @@ OWLGroup ImGuiViewer::create_floor_group()
         vec3i(0, 0, 0),
     };
 
-    std::vector<LambertianMaterial> lambertian_materials =
+    std::vector<SimpleObjMaterial> lambertian_materials =
     {
-        { vec3f(0.8f, 0.8f, 0.8f) }
+        { vec3f(0.8f, 0.8f, 0.8f), vec3f(0.0f, 0.0f, 0.0f), 0.0f }
     };
 
     std::vector<int> materials_indices =
@@ -302,16 +303,16 @@ OWLGroup ImGuiViewer::create_floor_group()
 
     OWLVarDecl floor_vars[] =
     {
-        { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, triangle_data.indices)},
-        { "triangle_data.vertices",                 OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, triangle_data.vertices)},
-        { "triangle_data.vertex_normals",           OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, triangle_data.vertex_normals)},
-        { "triangle_data.vertex_normals_indices",   OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, triangle_data.vertex_normals_indices)},
-        { "materials",                              OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, materials)},
-        { "materials_indices",                      OWL_BUFPTR, OWL_OFFSETOF(LambertianTriangleData, materials_indices)},
+                               { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.indices)},
+        { "triangle_data.vertices",                 OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertices)},
+        { "triangle_data.vertex_normals",           OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_normals)},
+        { "triangle_data.vertex_normals_indices",   OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_normals_indices)},
+        { "materials",                              OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, materials)},
+        { "materials_indices",                      OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, materials_indices)},
         { /*sentinel */ }
     };
 
-    OWLGeomType floor_geom_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(LambertianTriangleData), floor_vars, -1);
+    OWLGeomType floor_geom_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(SimpleObjTriangleData), floor_vars, -1);
     owlGeomTypeSetClosestHit(floor_geom_type, RADIANCE_RAY, m_module, "lambertian_triangle");
     OWLGeom floor_geom = owlGeomCreate(m_owl, floor_geom_type);
 
