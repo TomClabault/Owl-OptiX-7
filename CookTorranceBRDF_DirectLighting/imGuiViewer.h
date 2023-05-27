@@ -5,6 +5,7 @@
 #include "owlViewer/OWLViewer.h"
 #include "shaderMaterials.h"
 
+#include "emissive_triangles_utils.h"
 
 #include <chrono>
 
@@ -37,7 +38,7 @@ public:
     void draw() override;
 
     void load_skysphere(const char* filepath);
-    OWLGroup create_lambertian_group(const char* obj_file_path);
+    OWLGroup create_lambertian_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices);
     OWLGroup create_cook_torrance_obj_group(const char* obj_file_path);
     OWLGroup create_floor_group();
     OWLGroup create_emissive_triangles_group();
@@ -121,6 +122,11 @@ private:
 private:
     CUDABuffer m_accumulation_buffer;
     unsigned int m_frame_number = 0;
+
+    //This is the buffer that is going to hold the primitives
+    //indices of the emissive triangles of the scene.
+    //This buffer will be used to sample direct lighting
+    EmissiveTrianglesInfo m_emissive_triangles_info;
 
     //We're storing the geom of the OBJ object here
     //because we're going to need it to update its materials

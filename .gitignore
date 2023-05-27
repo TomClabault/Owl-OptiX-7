@@ -1,3 +1,4 @@
 CMakeLists.txt.user
 
-*Desktop_Qt_6_3_2_MSVC2019_64bit*
+build-Desktop*
+build-RTioW*

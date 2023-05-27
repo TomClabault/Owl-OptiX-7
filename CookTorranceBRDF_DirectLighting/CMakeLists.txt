@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
+set (CMAKE_CXX_STANDARD 17)
 project(CookTorranceBRDF_DirectLighting LANGUAGES C CXX CUDA)
 
 set(owl_dir ${PROJECT_SOURCE_DIR}/../owl)
@@ -15,15 +16,19 @@ embed_ptx(
 )
 
 add_executable(CookTorranceBRDF_DirectLighting main.cpp
+                                emissive_triangles_utils.cpp
                                 utils.cpp
 
                                 cookTorrance.h
                                 cudaBuffer.h
+                                emissive_triangles_utils.h
                                 geometriesData.h
                                 utils.h
                                 optix7.h
                                 shader.h
                                 shaderMaterials.h
+
+                                rapidobj/rapidobj.hpp
 
                                 imGuiViewer.h
                                 imGuiViewer.cpp
@@ -47,8 +52,6 @@ target_link_libraries(CookTorranceBRDF_DirectLighting
     owl_viewer
     stb_image
 )
-
-set_property(TARGET CookTorranceBRDF_DirectLighting PROPERTY CXX_STANDARD 17)
 
 set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use-fast-math --gpu-architecture=compute_50 --gpu-code=compute_50")
 

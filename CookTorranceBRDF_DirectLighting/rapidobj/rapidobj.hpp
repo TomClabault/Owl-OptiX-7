@@ -7469,10 +7469,10 @@ inline bool TriangulateSingleTask(const Array<float>& positions, const Triangula
 inline bool
 TriangulateTasksParallel(size_t concurrency, const Array<float>& positions, const std::vector<TriangulateTask>& tasks)
 {
-    auto task_index  = std::atomic_size_t{ 0 };
-    auto num_threads = std::atomic_size_t{ concurrency };
+    std::atomic_size_t task_index(0);
+    std::atomic_size_t num_threads{ concurrency };
     auto completed   = std::promise<void>();
-    auto success     = std::atomic_bool{ true };
+    std::atomic_bool success(true);
 
     auto func = [&]() {
         auto fetched_index = std::atomic_fetch_add(&task_index, size_t(1));

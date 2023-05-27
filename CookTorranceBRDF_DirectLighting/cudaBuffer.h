@@ -56,6 +56,11 @@ struct CUDABuffer {
         upload((const T*)vt.data(),vt.size());
     }
     
+    /**
+     * @brief upload
+     * @param t
+     * @param count How many items to upload. This is in number of items, not in bytes
+     */
     template<typename T>
     void upload(const T *t, size_t count)
     {

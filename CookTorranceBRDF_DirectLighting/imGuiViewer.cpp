@@ -39,8 +39,12 @@ ImGuiViewer::ImGuiViewer()
 
     OWLGroup bunny_group = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
     OWLGroup dragon_group = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
+
     //OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell_blocked.obj");
-    OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell-box.obj");
+    OWLBuffer lambertian_indices, lambertian_vertices;
+    EmissiveTrianglesInfo emissive_triangles_info;
+    OWLGroup cornell_box = create_lambertian_group("../../common_data/cornell-box.obj", emissive_triangles_info, &lambertian_indices, &lambertian_vertices);
+    m_emissive_triangles_info = emissive_triangles_info;
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
     owlInstanceGroupSetChild(scene, 0, bunny_group);
@@ -64,10 +68,13 @@ ImGuiViewer::ImGuiViewer()
     owlMissProgSet(m_owl, SHADOW_RAY, shadow_ray_miss_prog);
 
     OWLVarDecl launch_params_vars[] = {
-        { "scene",                  OWL_GROUP, OWL_OFFSETOF(LaunchParams, scene) },
-        { "accumulation_buffer",    OWL_RAW_POINTER, OWL_OFFSETOF(LaunchParams, accumulation_buffer) },
-        { "frame_number",           OWL_UINT, OWL_OFFSETOF(LaunchParams, frame_number) },
-        { "obj_material",           OWL_USER_TYPE(m_obj_material), OWL_OFFSETOF(LaunchParams, obj_material) },
+        { "scene",                                      OWL_GROUP,                                  OWL_OFFSETOF(LaunchParams, scene) },
+        { "accumulation_buffer",                        OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, accumulation_buffer) },
+        { "frame_number",                               OWL_UINT,                                   OWL_OFFSETOF(LaunchParams, frame_number) },
+        { "obj_material",                               OWL_USER_TYPE(m_obj_material),              OWL_OFFSETOF(LaunchParams, obj_material) },
+        { "emissive_triangles_info",                    OWL_USER_TYPE(m_emissive_triangles_info),   OWL_OFFSETOF(LaunchParams, emissive_triangles_info) },
+        { "emissive_triangles_info.triangles_indices",  OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_indices) },
+        { "emissive_triangles_info.triangles_vertices", OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_vertices) },
         { /* sentinel */ }
     };
 
@@ -77,6 +84,9 @@ ImGuiViewer::ImGuiViewer()
     owlParamsSet1ui(m_launch_params, "frame_number", 1);
     owlParamsSet1ul(m_launch_params, "accumulation_buffer", (uint64_t)m_accumulation_buffer.d_pointer());
     owlParamsSetGroup(m_launch_params, "scene", scene);
+    owlParamsSetRaw(m_launch_params, "emissive_triangles_info", &m_emissive_triangles_info);
+    owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_indices", lambertian_indices);
+    owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_vertices", lambertian_vertices);
 
     owlBuildPrograms(m_owl);
     owlBuildPipeline(m_owl);
@@ -133,7 +143,7 @@ void ImGuiViewer::setupImGUI()
     ImGui_ImplOpenGL3_Init("#version 130");
 }
 
-OWLGroup ImGuiViewer::create_lambertian_group(const char* obj_file_path)
+OWLGroup ImGuiViewer::create_lambertian_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices)
 {
     std::vector<vec3i> indices;
     std::vector<vec3f> vertices;
@@ -174,6 +184,7 @@ OWLGroup ImGuiViewer::create_lambertian_group(const char* obj_file_path)
     OWLBuffer triangles_materials_buffer = owlDeviceBufferCreate(m_owl,         OWL_USER_TYPE(lambertian_materials[0]), lambertian_materials.size(), lambertian_materials.data());
     OWLBuffer triangles_materials_indices_buffer = owlDeviceBufferCreate(m_owl, OWL_INT, materials_indices.size(), materials_indices.data());
 
+
     m_obj_triangle_geom = owlGeomCreate(m_owl, triangle_geometry_type);
 
     owlTrianglesSetIndices(m_obj_triangle_geom, triangles_indices_buffer, indices.size(), sizeof(vec3i), 0);
@@ -185,6 +196,10 @@ OWLGroup ImGuiViewer::create_lambertian_group(const char* obj_file_path)
     owlGeomSetBuffer(m_obj_triangle_geom, "triangle_data.vertex_normals_indices", triangles_normals_indices_buffer);
     owlGeomSetBuffer(m_obj_triangle_geom, "materials", triangles_materials_buffer);
     owlGeomSetBuffer(m_obj_triangle_geom, "materials_indices", triangles_materials_indices_buffer);
+
+    emissive_triangles = EmissiveTrianglesUtils::extract_emissive_triangles(indices, vertices, vertex_normals, vertex_normals_indices, obj_materials, materials_indices);
+    *triangles_indices = triangles_indices_buffer;
+    *triangles_vertices = triangles_vertices_buffer;
 
     OWLGroup triangle_group = owlTrianglesGeomGroupCreate(m_owl, 1, &m_obj_triangle_geom);
     owlGroupBuildAccel(triangle_group);

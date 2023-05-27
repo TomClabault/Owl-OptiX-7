@@ -1,6 +1,7 @@
 #ifndef GEOMETRIES_DATA_H
 #define GEOMETRIES_DATA_H
 
+#include "rapidobj/rapidobj.hpp"
 #include "shaderMaterials.h"
 
 #include <owl/common/math/vec.h>

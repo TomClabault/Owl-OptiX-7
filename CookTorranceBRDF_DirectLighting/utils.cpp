@@ -53,6 +53,7 @@ void Utils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>&
         std::exit(0);
     }
 
+    //Just counting the number of triangles
     unsigned int triangle_count = 0;
     for (int i = 0; i < mesh_data.shapes.size(); i++)
     {

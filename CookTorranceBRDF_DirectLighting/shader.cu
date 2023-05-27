@@ -48,12 +48,21 @@ struct ShadowRayPrd
     bool obstructed = true;
 };
 
-vec3f __device__ random_in_unit_sphere(PerRayData& prd)
+inline vec3f __device__ uniform_point_in_triangle(PerRayData& prd, const vec3f& A, const vec3f& B, const vec3f& C)
+{
+    float u = prd.random();//[0.0, 1.0]
+    float v = prd.random() * (1.0f - u);//[0.0, 1.0 - u] (because we don't want the sum of u + v to be > 1.0f
+    float w = 1 - u - v;
+
+    return u * A + v * B + w * C;
+}
+
+inline vec3f __device__ random_in_unit_sphere(PerRayData& prd)
 {
     return normalize(vec3f(prd.random(), prd.random(), prd.random()) * 2 - 1);
 }
 
-vec3f __device__ random_in_hemisphere(PerRayData& prd, const vec3f& normal)
+inline vec3f __device__ random_in_hemisphere(PerRayData& prd, const vec3f& normal)
 {
     vec3f random_in_sphere = random_in_unit_sphere(prd);
     if (dot(random_in_sphere, normal) < 0)//Below the surface
@@ -62,7 +71,7 @@ vec3f __device__ random_in_hemisphere(PerRayData& prd, const vec3f& normal)
         return random_in_sphere;
 }
 
-vec3f __device__ perfect_reflect_direction(const vec3f& incident_ray, const vec3f& normal)
+inline vec3f __device__ perfect_reflect_direction(const vec3f& incident_ray, const vec3f& normal)
 {
     return normalize(incident_ray - 2 * dot(incident_ray, normal) * normal);
 }
@@ -82,6 +91,9 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     vec2i pixel_ID = getLaunchIndex();
     RayGenData ray_gen_data = getProgramData<RayGenData>();
     unsigned int pixel_index = pixel_ID.y * ray_gen_data.frame_buffer_size.x + pixel_ID.x;
+
+    //This is going to be useful to get the triangles when sampling direct lighting
+    const LambertianTriangleData& lambertian_triangle_data = getProgramData<LambertianTriangleData>();
 
     PerRayData prd;
     prd.random.init(pixel_ID.x * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.x * NUM_SAMPLE_PER_PIXEL,
@@ -112,20 +124,24 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
                 if (depth == 0)
                     direct_light += prd.emissive * attenuation;
 
+                //Preparing the new origin and the new direction for the ray that just got
+                //bounced
                 ray_origin = prd.scatter.origin;
                 ray_direction = prd.scatter.direction;
 
-                //If the ray hit the geometry, we're computing the direct lighting
-                const vec3f A = vec3f(-0.884011f, 5.318497, -2.517968);//0
-                const vec3f B = vec3f(0.415989f, 5.318497, -2.517968);//1
-                const vec3f C = vec3f( -0.884011f, 5.318497, -3.567968);//2
-                const vec3f D = vec3f( 0.415989f, 5.318497, -3.567968);//3
+                //We're multiplying a uniform random number [0.0, 1.0] by (nb_emissive_triangles + 1) because
+                //if we don't add +1 here, there's an infinitely small chance that we're going to sample
+                //the very last emissive triangle (this would require the random number to be exactly
+                //1.0 and this is not going to happen).
+                int random_emissive_triangle_index = prd.random() * (optixLaunchParams.emissive_triangles_info.count + 1);
 
-                vec3f u = B - A;
-                vec3f v = C - A;
+                const vec3i& triangle_indices = optixLaunchParams.emissive_triangles_info.triangles_indices[random_emissive_triangle_index];
+                const vec3f& triangle_A = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.x];
+                const vec3f& triangle_B = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.y];
+                const vec3f& triangle_C = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.z];
 
+                vec3f point_on_light = uniform_point_in_triangle(prd, triangle_A, triangle_B, triangle_C);
                 vec3f shadow_ray_origin = prd.scatter.origin;
-                vec3f point_on_light = u * prd.random() + v * prd.random() + A;
                 vec3f light_direction = normalize(point_on_light - prd.scatter.origin);
 
                 float dist = length(point_on_light - prd.scatter.origin);
@@ -182,7 +198,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
 //    vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
 //    vec3f smooth_normal = normalize(u * normal_b
 //                                  + v * normal_c
-//                                    + (1 - - u - v) * normal_a);
+//                                  + (1 - u - v) * normal_a);
 
     CookTorranceMaterial material = optixLaunchParams.obj_material;
 

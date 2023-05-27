@@ -4,6 +4,7 @@
 #include <owl/owl.h>
 #include <owl/common/math/vec.h>
 
+#include "emissive_triangles_utils.h"
 #include "shaderMaterials.h"
 #include "texture_types.h"
 
@@ -20,6 +21,8 @@ struct LaunchParams
     unsigned int frame_number;
 
     CookTorranceMaterial obj_material;
+
+    EmissiveTrianglesInfo emissive_triangles_info;
 };
 
 struct RayGenData
