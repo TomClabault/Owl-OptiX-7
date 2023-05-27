@@ -35,15 +35,14 @@ ImGuiViewer::ImGuiViewer()
     };
 
     m_ray_gen = owlRayGenCreate(m_owl, m_module, "ray_gen", sizeof(RayGenData), rayGenVars, -1);
-    //camera.setOrientation(vec3f(-1.151349, 3.970956, 9.470657), vec3f(-1.147143, 3.817521, 8.482509), normalize(vec3f(0.0f, 1.0f, 0.0f)), 60);
 
     OWLGroup bunny_group = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
     OWLGroup dragon_group = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
 
-    OWLBuffer obj_indices, obj_vertices;
+    OWLBuffer obj_indices, obj_vertices, obj_mat_indices, obj_mats;
     EmissiveTrianglesInfo emissive_triangles_info;
     //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &lambertian_indices, &lambertian_vertices);
-    OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices);
+    OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     m_emissive_triangles_info = emissive_triangles_info;
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
@@ -68,14 +67,16 @@ ImGuiViewer::ImGuiViewer()
     owlMissProgSet(m_owl, SHADOW_RAY, shadow_ray_miss_prog);
 
     OWLVarDecl launch_params_vars[] = {
-        { "scene",                                      OWL_GROUP,                                  OWL_OFFSETOF(LaunchParams, scene) },
-        { "accumulation_buffer",                        OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, accumulation_buffer) },
-        { "frame_number",                               OWL_UINT,                                   OWL_OFFSETOF(LaunchParams, frame_number) },
-        { "max_bounces",                                OWL_INT,                                    OWL_OFFSETOF(LaunchParams, max_bounces) },
-        { "obj_material",                               OWL_USER_TYPE(m_obj_material),              OWL_OFFSETOF(LaunchParams, obj_material) },
-        { "emissive_triangles_info",                    OWL_USER_TYPE(m_emissive_triangles_info),   OWL_OFFSETOF(LaunchParams, emissive_triangles_info) },
-        { "emissive_triangles_info.triangles_indices",  OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_indices) },
-        { "emissive_triangles_info.triangles_vertices", OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_vertices) },
+        { "scene",                                               OWL_GROUP,                                  OWL_OFFSETOF(LaunchParams, scene) },
+        { "accumulation_buffer",                                 OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, accumulation_buffer) },
+        { "frame_number",                                        OWL_UINT,                                   OWL_OFFSETOF(LaunchParams, frame_number) },
+        { "max_bounces",                                         OWL_INT,                                    OWL_OFFSETOF(LaunchParams, max_bounces) },
+        { "obj_material",                                        OWL_USER_TYPE(m_obj_material),              OWL_OFFSETOF(LaunchParams, obj_material) },
+        { "emissive_triangles_info",                             OWL_USER_TYPE(m_emissive_triangles_info),   OWL_OFFSETOF(LaunchParams, emissive_triangles_info) },
+        { "emissive_triangles_info.triangles_indices",           OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_indices) },
+        { "emissive_triangles_info.triangles_vertices",          OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_vertices) },
+        { "emissive_triangles_info.triangles_materials_indices", OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_materials_indices) },
+        { "emissive_triangles_info.triangles_materials",         OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_materials) },
         { /* sentinel */ }
     };
 
@@ -89,6 +90,8 @@ ImGuiViewer::ImGuiViewer()
     owlParamsSetRaw(m_launch_params, "emissive_triangles_info", &m_emissive_triangles_info);
     owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_indices", obj_indices);
     owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_vertices", obj_vertices);
+    owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_materials_indices", obj_mat_indices);
+    owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_materials", obj_mats);
 
     owlBuildPrograms(m_owl);
     owlBuildPipeline(m_owl);
@@ -145,7 +148,7 @@ void ImGuiViewer::setupImGUI()
     ImGui_ImplOpenGL3_Init("#version 130");
 }
 
-OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices)
+OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices, OWLBuffer* triangles_materials_indices, OWLBuffer* triangles_materials)
 {
     std::vector<vec3i> indices;
     std::vector<vec3f> vertices;
@@ -203,6 +206,8 @@ OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTriang
     emissive_triangles = EmissiveTrianglesUtils::extract_emissive_triangles(indices, vertices, vertex_normals, vertex_normals_indices, obj_materials, materials_indices);
     *triangles_indices = triangles_indices_buffer;
     *triangles_vertices = triangles_vertices_buffer;
+    *triangles_materials_indices = triangles_materials_indices_buffer;
+    *triangles_materials = triangles_materials_buffer;
 
     OWLGroup triangle_group = owlTrianglesGeomGroupCreate(m_owl, 1, &m_obj_triangle_geom);
     owlGroupBuildAccel(triangle_group);
@@ -305,7 +310,7 @@ OWLGroup ImGuiViewer::create_floor_group()
 
     OWLVarDecl floor_vars[] =
     {
-                               { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.indices)},
+        { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.indices)},
         { "triangle_data.vertices",                 OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertices)},
         { "triangle_data.vertex_normals",           OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_normals)},
         { "triangle_data.vertex_normals_indices",   OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_normals_indices)},
@@ -457,11 +462,12 @@ void ImGuiViewer::imgui_render()
     {
         ImGuiIO& io = ImGui::GetIO();
 
-        ImGui::Begin("Cook Torrance BRDF");
+        ImGui::Begin("Application Settings");
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 
         ImGui::Separator();
 
+        ImGui::Text("Cook Torrance BRDF");
         ImGui::ColorPicker3("Albedo", (float*)&m_obj_material.albedo);
         ImGui::SliderFloat("Metallic", &m_obj_material.metallic, 0.0f, 1.0f);
         ImGui::SliderFloat("Roughness", &m_obj_material.roughness, 0.0f, 1.0f);
@@ -469,6 +475,7 @@ void ImGuiViewer::imgui_render()
 
         ImGui::Separator();
 
+        ImGui::Text("General settings");
         ImGui::SliderInt("Max bounces", &m_max_bounces, 0, 20);
 
         ImGui::End();

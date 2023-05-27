@@ -39,7 +39,7 @@ public:
     void draw() override;
 
     void load_skysphere(const char* filepath);
-    OWLGroup create_obj_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices);
+    OWLGroup create_obj_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices, OWLBuffer* triangles_materials_indices, OWLBuffer* triangles_materials);
     OWLGroup create_cook_torrance_obj_group(const char* obj_file_path);
     OWLGroup create_floor_group();
     OWLGroup create_emissive_triangles_group();

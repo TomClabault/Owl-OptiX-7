@@ -2,6 +2,7 @@
 #define EMISSIVE_TRIANGLES_UTILS_H
 
 #include "rapidobj/rapidobj.hpp"
+#include "shaderMaterials.h"
 
 #include <owl/common/math/vec.h>
 
@@ -11,6 +12,8 @@ struct EmissiveTrianglesInfo
 {
     vec3i* triangles_indices;
     vec3f* triangles_vertices;
+    int* triangles_materials_indices;
+    SimpleObjMaterial* triangles_materials;
 
     unsigned int count;
     int* triangles_primitive_indices;

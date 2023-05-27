@@ -92,6 +92,35 @@ vec3f inline __device__ ns_scatter(PerRayData& prd, const vec3f& hit_point, cons
     return normalize((1.0f - ns) * fuzzy_reflection + ns * perfect_reflection);
 }
 
+vec3f inline __device__ direct_lighting(PerRayData& prd, const vec3f& attenuation)
+{
+    //We're multiplying a uniform random number [0.0, 1.0] by (nb_emissive_triangles + 1) because
+    //if we don't add +1 here, there's an infinitely small chance that we're going to sample
+    //the very last emissive triangle (this would require the random number to be exactly
+    //1.0 and this is not going to happen).
+    int random_emissive_triangle_index = prd.random() * (optixLaunchParams.emissive_triangles_info.count + 1);
+
+    const vec3i& triangle_indices = optixLaunchParams.emissive_triangles_info.triangles_indices[random_emissive_triangle_index];
+    const vec3f& triangle_A = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.x];
+    const vec3f& triangle_B = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.y];
+    const vec3f& triangle_C = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.z];
+
+    vec3f point_on_light = uniform_point_in_triangle(prd, triangle_A, triangle_B, triangle_C);
+    vec3f shadow_ray_origin = prd.scatter.origin;
+    vec3f light_direction = normalize(point_on_light - prd.scatter.origin);
+
+    float dist = length(point_on_light - prd.scatter.origin);
+    ShadowRay shadow_ray(prd.scatter.origin, normalize(point_on_light - shadow_ray_origin), 1.0e-3f, dist -1.0e-4f);
+    ShadowRayPrd shadow_prd;
+    traceRay(optixLaunchParams.scene, shadow_ray, shadow_prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT
+                                                                  | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT);
+
+    int triangle_mat_index = optixLaunchParams.emissive_triangles_info.triangles_materials_indices[random_emissive_triangle_index];
+    vec3f light_color = optixLaunchParams.emissive_triangles_info.triangles_materials[triangle_mat_index].emissive;
+    float light_angle = dot(prd.normal, normalize(point_on_light - shadow_ray_origin));
+    return vec3f(!shadow_prd.obstructed) * light_angle * light_color * attenuation;
+}
+
 OPTIX_RAYGEN_PROGRAM(ray_gen)()
 {
     vec2i pixel_ID = getLaunchIndex();
@@ -135,29 +164,7 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
                 ray_origin = prd.scatter.origin;
                 ray_direction = prd.scatter.direction;
 
-                //We're multiplying a uniform random number [0.0, 1.0] by (nb_emissive_triangles + 1) because
-                //if we don't add +1 here, there's an infinitely small chance that we're going to sample
-                //the very last emissive triangle (this would require the random number to be exactly
-                //1.0 and this is not going to happen).
-                int random_emissive_triangle_index = prd.random() * (optixLaunchParams.emissive_triangles_info.count + 1);
-
-                const vec3i& triangle_indices = optixLaunchParams.emissive_triangles_info.triangles_indices[random_emissive_triangle_index];
-                const vec3f& triangle_A = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.x];
-                const vec3f& triangle_B = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.y];
-                const vec3f& triangle_C = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.z];
-
-                vec3f point_on_light = uniform_point_in_triangle(prd, triangle_A, triangle_B, triangle_C);
-                vec3f shadow_ray_origin = prd.scatter.origin;
-                vec3f light_direction = normalize(point_on_light - prd.scatter.origin);
-
-                float dist = length(point_on_light - prd.scatter.origin);
-                ShadowRay shadow_ray(prd.scatter.origin, normalize(point_on_light - shadow_ray_origin), 1.0e-3f, dist -1.0e-4f);
-                ShadowRayPrd shadow_prd;
-                traceRay(optixLaunchParams.scene, shadow_ray, shadow_prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT
-                                                                        | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT);
-
-                float light_angle = dot(prd.normal, normalize(point_on_light - shadow_ray_origin));
-                direct_light += vec3f(!shadow_prd.obstructed) * light_angle * vec3f(2.0f) * attenuation;//vec3f(2.0f) is the light intensity
+                direct_light += direct_lighting(prd, attenuation);
             }
             else if (prd.scatter.state == ScatterState::MISSED)
                 break;
