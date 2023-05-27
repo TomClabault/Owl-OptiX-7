@@ -185,12 +185,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     float2 uv = optixGetTriangleBarycentrics();
     float u = uv.x, v = uv.y;
 
-    const vec3i& indices = triangle_data.triangle_data.indices[primitive_index];
-    const vec3f& A = triangle_data.triangle_data.vertices[indices.x];
-    const vec3f& B = triangle_data.triangle_data.vertices[indices.y];
-    const vec3f& C = triangle_data.triangle_data.vertices[indices.z];
-    //vec3f normal = normalize(cross(B - A, C - A));
-
     //Smooth normal
     vec3i normal_indices = triangle_data.triangle_data.vertex_normals_indices[primitive_index];
     vec3f normal_a = triangle_data.triangle_data.vertex_normals[normal_indices.x];
@@ -209,11 +203,11 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     vec3f hit_point = ray_origin + hit_t * ray_direction;
 
     metal_scatter(prd, hit_point, ray_direction, smooth_normal, material.roughness, material.albedo);
-    prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, smooth_normal);//BRDF
+    prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, smooth_normal);
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::BOUNCED;
 
-    prd.normal = normal;
+    prd.normal = smooth_normal;
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(lambertian_triangle)()
