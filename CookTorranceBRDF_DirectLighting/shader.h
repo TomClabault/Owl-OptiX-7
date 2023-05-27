@@ -20,8 +20,15 @@ struct LaunchParams
     vec3f* accumulation_buffer;
     unsigned int frame_number;
 
+    //Max recursion depth of the rays
+    int max_bounces;
+
+    //Material controling the apperance of the CookTorrance triangles
+    //of the scene
     CookTorranceMaterial obj_material;
 
+    //Information about the emissives triangles of the scene (how many,
+    //indices, vertices, ...). Used for direct lighting in the ray_gen program
     EmissiveTrianglesInfo emissive_triangles_info;
 };
 

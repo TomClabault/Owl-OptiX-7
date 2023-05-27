@@ -31,6 +31,7 @@ public:
     void cameraChanged() override;
     void update_frame_number();
     void update_obj_material();
+    void update_max_bounces();
 
     void resize(const owl::vec2i& new_size) override;
     void render() override;
@@ -122,6 +123,14 @@ private:
 private:
     CUDABuffer m_accumulation_buffer;
     unsigned int m_frame_number = 0;
+
+    //Maximum recursion depth of the rays
+    //Kept here so that ImGUI can modify it
+    int m_max_bounces = 5;
+    //Max bounces parameter at the last frame. Used
+    //to determine when the user has changed the max bounces
+    //using the ImGUI slider
+    int m_previous_max_bounces;
 
     //This is the buffer that is going to hold the primitives
     //indices of the emissive triangles of the scene.

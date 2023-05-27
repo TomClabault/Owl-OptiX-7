@@ -71,6 +71,7 @@ ImGuiViewer::ImGuiViewer()
         { "scene",                                      OWL_GROUP,                                  OWL_OFFSETOF(LaunchParams, scene) },
         { "accumulation_buffer",                        OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, accumulation_buffer) },
         { "frame_number",                               OWL_UINT,                                   OWL_OFFSETOF(LaunchParams, frame_number) },
+        { "max_bounces",                                OWL_INT,                                    OWL_OFFSETOF(LaunchParams, max_bounces) },
         { "obj_material",                               OWL_USER_TYPE(m_obj_material),              OWL_OFFSETOF(LaunchParams, obj_material) },
         { "emissive_triangles_info",                    OWL_USER_TYPE(m_emissive_triangles_info),   OWL_OFFSETOF(LaunchParams, emissive_triangles_info) },
         { "emissive_triangles_info.triangles_indices",  OWL_BUFPTR,                                 OWL_OFFSETOF(LaunchParams, emissive_triangles_info.triangles_indices) },
@@ -81,9 +82,10 @@ ImGuiViewer::ImGuiViewer()
     m_launch_params = owlParamsCreate(m_owl, sizeof(LaunchParams), launch_params_vars, -1);
 
     m_accumulation_buffer.resize(sizeof(vec3f) * fbSize.x * fbSize.y);
-    owlParamsSet1ui(m_launch_params, "frame_number", 1);
-    owlParamsSet1ul(m_launch_params, "accumulation_buffer", (uint64_t)m_accumulation_buffer.d_pointer());
     owlParamsSetGroup(m_launch_params, "scene", scene);
+    owlParamsSet1ul(m_launch_params, "accumulation_buffer", (uint64_t)m_accumulation_buffer.d_pointer());
+    owlParamsSet1ui(m_launch_params, "frame_number", 1);
+    owlParamsSet1i(m_launch_params, "max_bounces", m_max_bounces);
     owlParamsSetRaw(m_launch_params, "emissive_triangles_info", &m_emissive_triangles_info);
     owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_indices", obj_indices);
     owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_vertices", obj_vertices);
@@ -457,12 +459,17 @@ void ImGuiViewer::imgui_render()
 
         ImGui::Begin("Cook Torrance BRDF");
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+
         ImGui::Separator();
 
         ImGui::ColorPicker3("Albedo", (float*)&m_obj_material.albedo);
         ImGui::SliderFloat("Metallic", &m_obj_material.metallic, 0.0f, 1.0f);
         ImGui::SliderFloat("Roughness", &m_obj_material.roughness, 0.0f, 1.0f);
         ImGui::SliderFloat("Reflectance", &m_obj_material.reflectance, 0.0f, 1.0f);
+
+        ImGui::Separator();
+
+        ImGui::SliderInt("Max bounces", &m_max_bounces, 0, 20);
 
         ImGui::End();
     }
@@ -495,12 +502,27 @@ void ImGuiViewer::update_obj_material()
     m_previous_obj_material = m_obj_material;
 }
 
+void ImGuiViewer::update_max_bounces()
+{
+    //The max bounces count has changed
+    if (m_max_bounces != m_previous_max_bounces)
+    {
+        m_frame_number = 0;
+        update_frame_number();
+
+        owlParamsSet1i(m_launch_params, "max_bounces", m_max_bounces);
+    }
+
+    m_previous_max_bounces = m_max_bounces;
+}
+
 void ImGuiViewer::render()
 {
     imgui_render();
 
     update_frame_number();
     update_obj_material();
+    update_max_bounces();
 
     if (m_sbtDirty)
     {

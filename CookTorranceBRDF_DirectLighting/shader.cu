@@ -9,7 +9,6 @@
 #include "shader.h"
 
 #define NUM_SAMPLE_PER_PIXEL 1
-#define MAX_RECURSION_DEPTH 15
 
 using namespace owl;
 
@@ -117,7 +116,7 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
         vec3f attenuation = vec3f(1.0f);
         vec3f direct_light = vec3f(0.0f);
         bool emissive_found = false;
-        for (int depth = 0; depth < MAX_RECURSION_DEPTH; depth++)
+        for (int depth = 0; depth < optixLaunchParams.max_bounces; depth++)
         {
             Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);//Radiance ray
             traceRay(optixLaunchParams.scene, ray, prd, OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES | OPTIX_RAY_FLAG_DISABLE_ANYHIT);
