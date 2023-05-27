@@ -189,16 +189,16 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     const vec3f& A = triangle_data.triangle_data.vertices[indices.x];
     const vec3f& B = triangle_data.triangle_data.vertices[indices.y];
     const vec3f& C = triangle_data.triangle_data.vertices[indices.z];
-    vec3f normal = normalize(cross(B - A, C - A));
+    //vec3f normal = normalize(cross(B - A, C - A));
 
     //Smooth normal
-//    vec3i normal_indices = triangle_data.triangle_data.vertex_normals_indices[primitive_index];
-//    vec3f normal_a = triangle_data.triangle_data.vertex_normals[normal_indices.x];
-//    vec3f normal_b = triangle_data.triangle_data.vertex_normals[normal_indices.y];
-//    vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
-//    vec3f smooth_normal = normalize(u * normal_b
-//                                  + v * normal_c
-//                                  + (1 - u - v) * normal_a);
+    vec3i normal_indices = triangle_data.triangle_data.vertex_normals_indices[primitive_index];
+    vec3f normal_a = triangle_data.triangle_data.vertex_normals[normal_indices.x];
+    vec3f normal_b = triangle_data.triangle_data.vertex_normals[normal_indices.y];
+    vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
+    vec3f smooth_normal = normalize(u * normal_b
+                                  + v * normal_c
+                                  + (1 - u - v) * normal_a);
 
     CookTorranceMaterial material = optixLaunchParams.obj_material;
 
@@ -208,8 +208,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     float hit_t = optixGetRayTmax();
     vec3f hit_point = ray_origin + hit_t * ray_direction;
 
-    metal_scatter(prd, hit_point, ray_direction, normal, material.roughness, material.albedo);
-    prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, normal);//BRDF
+    metal_scatter(prd, hit_point, ray_direction, smooth_normal, material.roughness, material.albedo);
+    prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, smooth_normal);//BRDF
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::BOUNCED;
 
