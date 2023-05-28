@@ -41,7 +41,7 @@ ImGuiViewer::ImGuiViewer()
 
     OWLBuffer obj_indices, obj_vertices, obj_mat_indices, obj_mats;
     EmissiveTrianglesInfo emissive_triangles_info;
-    //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &lambertian_indices, &lambertian_vertices);
+    //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     m_emissive_triangles_info = emissive_triangles_info;
 
@@ -181,7 +181,7 @@ OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTriang
     };
 
     OWLGeomType triangle_geometry_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(SimpleObjTriangleData), triangle_geometry_vars, -1);
-    owlGeomTypeSetClosestHit(triangle_geometry_type, RADIANCE_RAY, m_module, "lambertian_triangle");
+    owlGeomTypeSetClosestHit(triangle_geometry_type, RADIANCE_RAY, m_module, "obj_triangle");
 
     OWLBuffer triangles_indices_buffer = owlDeviceBufferCreate(m_owl,           OWL_INT3, indices.size(), indices.data());
     OWLBuffer triangles_vertices_buffer = owlDeviceBufferCreate(m_owl,          OWL_FLOAT3, vertices.size(), vertices.data());
@@ -320,7 +320,7 @@ OWLGroup ImGuiViewer::create_floor_group()
     };
 
     OWLGeomType floor_geom_type = owlGeomTypeCreate(m_owl, OWL_TRIANGLES, sizeof(SimpleObjTriangleData), floor_vars, -1);
-    owlGeomTypeSetClosestHit(floor_geom_type, RADIANCE_RAY, m_module, "lambertian_triangle");
+    owlGeomTypeSetClosestHit(floor_geom_type, RADIANCE_RAY, m_module, "obj_triangle");
     OWLGeom floor_geom = owlGeomCreate(m_owl, floor_geom_type);
 
     OWLBuffer triangles_indices_buffer =  owlDeviceBufferCreate(m_owl,          OWL_INT3,                               triangles_indices.size(),       triangles_indices.data());

@@ -126,7 +126,7 @@ private:
 
     //Maximum recursion depth of the rays
     //Kept here so that ImGUI can modify it
-    int m_max_bounces = 5;
+    int m_max_bounces = 1;
     //Max bounces parameter at the last frame. Used
     //to determine when the user has changed the max bounces
     //using the ImGUI slider

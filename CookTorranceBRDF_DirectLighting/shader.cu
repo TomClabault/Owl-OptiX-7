@@ -35,6 +35,7 @@ struct PerRayData
     {
         vec3f origin;
         vec3f direction;
+        vec3f normal;
 
         ScatterState state;
     } scatter;
@@ -92,7 +93,7 @@ vec3f inline __device__ ns_scatter(PerRayData& prd, const vec3f& hit_point, cons
     return normalize((1.0f - ns) * fuzzy_reflection + ns * perfect_reflection);
 }
 
-vec3f inline __device__ direct_lighting(PerRayData& prd, const vec3f& attenuation)
+vec3f inline __device__ direct_lighting(PerRayData& prd)
 {
     //We're multiplying a uniform random number [0.0, 1.0] by (nb_emissive_triangles + 1) because
     //if we don't add +1 here, there's an infinitely small chance that we're going to sample
@@ -117,8 +118,8 @@ vec3f inline __device__ direct_lighting(PerRayData& prd, const vec3f& attenuatio
 
     int triangle_mat_index = optixLaunchParams.emissive_triangles_info.triangles_materials_indices[random_emissive_triangle_index];
     vec3f light_color = optixLaunchParams.emissive_triangles_info.triangles_materials[triangle_mat_index].emissive;
-    float light_angle = dot(prd.normal, normalize(point_on_light - shadow_ray_origin));
-    return vec3f(!shadow_prd.obstructed) * light_angle * light_color * attenuation;
+    float light_angle = dot(prd.scatter.normal, normalize(point_on_light - shadow_ray_origin));
+    return vec3f(!shadow_prd.obstructed) * light_angle * light_color;
 }
 
 OPTIX_RAYGEN_PROGRAM(ray_gen)()
@@ -143,34 +144,28 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     for (int sample = 0; sample < NUM_SAMPLE_PER_PIXEL; sample++)
     {
         vec3f attenuation = vec3f(1.0f);
-        vec3f direct_light = vec3f(0.0f);
-        bool emissive_found = false;
+        vec3f ray_color = vec3f(0.0f);
         for (int depth = 0; depth < optixLaunchParams.max_bounces; depth++)
         {
             Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);//Radiance ray
             traceRay(optixLaunchParams.scene, ray, prd, OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES | OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-            attenuation *= prd.attenuation;
-            emissive_found |= (prd.emissive.x > 0 || prd.emissive.y > 0 || prd.emissive.z > 0);
-
             if (prd.scatter.state == ScatterState::BOUNCED)
             {
-                //Adding emissive for the first ray
-                if (depth == 0)
-                    direct_light += prd.emissive * attenuation;
+                attenuation *= prd.attenuation;
 
-                //Preparing the new origin and the new direction for the ray that just got
-                //bounced
+                if (depth == 0)
+                    ray_color += prd.emissive;
+                ray_color += attenuation ;//* direct_lighting(prd);
+
                 ray_origin = prd.scatter.origin;
                 ray_direction = prd.scatter.direction;
-
-                direct_light += direct_lighting(prd, attenuation);
             }
             else if (prd.scatter.state == ScatterState::MISSED)
                 break;
         }
 
-        sum_samples_color += (attenuation * (emissive_found * 1.0f) + direct_light) / 2.0f;
+        sum_samples_color += ray_color;
     }
 
     vec3f averaged_color = sum_samples_color / (float)NUM_SAMPLE_PER_PIXEL;
@@ -221,10 +216,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::BOUNCED;
 
-    prd.normal = smooth_normal;
+    prd.scatter.normal = smooth_normal;
 }
 
-OPTIX_CLOSEST_HIT_PROGRAM(lambertian_triangle)()
+OPTIX_CLOSEST_HIT_PROGRAM(obj_triangle)()
 {
     PerRayData& prd = getPRD<PerRayData>();
     SimpleObjTriangleData triangle_data = getProgramData<SimpleObjTriangleData>();
@@ -254,7 +249,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(lambertian_triangle)()
     prd.scatter.origin = hit_point + 1.0e-5f * smooth_normal;
     prd.scatter.direction = ns_scatter(prd, hit_point, ray_direction, smooth_normal, mat.ns);
     prd.scatter.state = ScatterState::BOUNCED;
-    prd.normal = smooth_normal;
+    prd.scatter.normal = smooth_normal;
 }
 
 OPTIX_MISS_PROGRAM(shadow_ray_miss)()
@@ -266,7 +261,7 @@ OPTIX_MISS_PROGRAM(shadow_ray_miss)()
 OPTIX_MISS_PROGRAM(miss)()
 {
     PerRayData& prd = getPRD<PerRayData>();
-    prd.attenuation = vec3f(1.0f);
+    prd.attenuation = vec3f(0.0f);
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::MISSED;
 
