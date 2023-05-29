@@ -126,8 +126,6 @@ void inline __device__ dielectric_scatter(PerRayData& prd, const vec3f hit_point
         float reflect_probability = schlick_approximation(cosi, ior);
 
         vec2i idx = getLaunchIndex();
-        if (idx.x == 0 && idx.y == 0)
-            printf("reflect proba: %f", reflect_probability);
 
         if (prd.random() < reflect_probability)//The ray is reflected
         {
@@ -146,7 +144,6 @@ void inline __device__ dielectric_scatter(PerRayData& prd, const vec3f hit_point
     prd.scatter.attenuation = color;
     prd.scatter.normal = normal;
     prd.scatter.albedo = color;
-
 }
 
 template <typename SphereGeomType>
@@ -376,12 +373,8 @@ extern "C" __global__ void __raygen__ray_gen()
             //We're only going to add the albedo if we hit a non
             //reflective/refractive material (or missed completely)
             //and if the albedo hasn't been added yet
-            if ((prd.scatter.state == ScatterState::MISSED || prd.scatter.state == ScatterState::BOUNCED) && !albedo_set)
-            {
-                sum_albedo += prd.scatter.albedo;
-
-                albedo_set = true;
-            }
+            if (recurse == 0)
+                sum_albedo = prd.scatter.albedo;
 
             if (prd.scatter.state == ScatterState::MISSED)
                 break;
@@ -415,10 +408,14 @@ extern "C" __global__ void __raygen__ray_gen()
     vec3f accumulated_color = ray_gen_data.accumulation_buffer[pixel_index];
     vec3f averaged_color = accumulated_color / (float)ray_gen_data.frame_number;
 
+    vec3f sRGB_corrected = vec3f(pow(averaged_color.x, 1.0f / 2.2f),
+                                 pow(averaged_color.y, 1.0f / 2.2f),
+                                 pow(averaged_color.z, 1.0f / 2.2f));
+
     float4 float4_val;
-    float4_val.x = averaged_color.x;
-    float4_val.y = averaged_color.y;
-    float4_val.z = averaged_color.z;
+    float4_val.x = sRGB_corrected.x;
+    float4_val.y = sRGB_corrected.y;
+    float4_val.z = sRGB_corrected.z;
     float4_val.w = 1.0f;
 
     float4 final_normal_f4;

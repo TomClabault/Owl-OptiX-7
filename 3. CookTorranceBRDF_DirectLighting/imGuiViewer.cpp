@@ -10,6 +10,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
+#include <chrono>
 #include <thread>
 
 extern "C" char shader_ptx[];

@@ -157,12 +157,4 @@ private:
     OWLModule m_module;
     OWLRayGen m_ray_gen;
     OWLLaunchParams m_launch_params;
-
-    struct ImGuiState
-    {
-        bool show_demo_window;
-        bool show_another_window;
-
-        vec4f clear_color;
-    } imgui_state;
 };

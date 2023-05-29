@@ -15,14 +15,14 @@ void __global__ float4_to_rgb_kernel(float4* in, uint32_t* out, vec2i input_size
     unsigned int pixel_index = pixel_y * input_size.x + pixel_x;
 
     float4 f4 = in[pixel_index];
-    vec3f gamma_corrected = vec3f(clamp(sqrtf(f4.x), 1.0f),
-                                  clamp(sqrtf(f4.y), 1.0f),
-                                  clamp(sqrtf(f4.z), 1.0f));
+    vec3f clamped = vec3f(clamp(f4.x, 1.0f),
+                          clamp(f4.y, 1.0f),
+                          clamp(f4.z, 1.0f));
 
     uint32_t value = 0;
-    value |= (uint32_t)(gamma_corrected.x * 255.9f) <<  0;
-    value |= (uint32_t)(gamma_corrected.y * 255.9f) <<  8;
-    value |= (uint32_t)(gamma_corrected.z * 255.9f) << 16;
+    value |= (uint32_t)(clamped.x * 255.9f) <<  0;
+    value |= (uint32_t)(clamped.y * 255.9f) <<  8;
+    value |= (uint32_t)(clamped.z * 255.9f) << 16;
     value |= (uint32_t)255             << 24;
 
     out[pixel_index] = value;

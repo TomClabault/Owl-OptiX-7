@@ -13,11 +13,10 @@ inline vec3f __device__ schlick_approximation(float cos_theta, const vec3f& F0)
     return F0 + (1.0f - F0) * powf((1.0f - cos_theta), 5.0f);
 }
 
-inline float __device__ d_GGX(float NdotH, float roughness)
+inline float __device__ D_GGX(float NdotH, float roughness)
 {
     float alpha = roughness * roughness;
     float alpha2 = alpha * alpha;
-    //alpha2 = max(alpha2, 0.05f);
 
     float denom = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
 
@@ -58,54 +57,19 @@ inline vec3f __device__ cook_torrance_brdf(const CookTorranceMaterial& material,
     F0 = (1.0f - material.metallic) * F0 + material.metallic * material.albedo;
 
     vec3f fresnel_term = schlick_approximation(VoH, F0);//Reflected portion of the light (1 - transmitted)
-    vec3f normal_distribution_term = d_GGX(NoH, material.roughness);
+    vec3f normal_distribution_term = D_GGX(NoH, material.roughness);
     vec3f geometry_term = g_smith(NoV, NoL, material.roughness);
+
 
     //max() to prevent division by zero
     vec3f specular_term = (fresnel_term * normal_distribution_term * geometry_term) / max((4.0f * NoV * NoL), 0.00001f);
+    //if (specular_term.x > 1.0f || specular_term.y > 1.0f || specular_term.z > 1.0f)
+        //printf("fresnel_term(%f %f %f), normal_distribution_term (%f %f %f), geometry (%f %f %f)\n", fresnel_term.x, fresnel_term.y, fresnel_term.z, normal_distribution_term.x, normal_distribution_term.y, normal_distribution_term.z, geometry_term.x, geometry_term.y, geometry_term.z);
     vec3f diffuse_term = material.albedo / (float)M_PI;
     diffuse_term *= (1.0f - material.metallic);//No diffuse part for the metals
     diffuse_term *= vec3f(1.0f) - fresnel_term;//Only the transmitted light contributes to the diffuse term
 
     return specular_term + diffuse_term;
 }
-
-//inline vec3f __device__ cook_torrance_brdf(const CookTorranceMaterial& material, vec3f lightDir, vec3f viewDir, vec3f normal)
-//{
-//    float k = 0.2f;
-//    float F0 = 0.8f;
-
-//    float NdotL = max(0.0f, dot(normal, lightDir));
-//    float Rs = 0.0f;
-//    if (NdotL > 0.0f)
-//    {
-//        vec3f H = normalize(lightDir + viewDir);
-//        float NdotH = max(0.0f, dot(normal, H));
-//        float NdotV = max(0.0f, dot(normal, viewDir));
-//        float VdotH = max(0.0f, dot(lightDir, H));
-
-//        // Fresnel reflectance
-//        float F = pow(1.0f - VdotH, 5.0f);
-//        F *= (1.0f - F0);
-//        F += F0;
-
-//        // Microfacet distribution by Beckmann
-//        float m_squared = material.roughness * material.roughness;
-//        float r1 = 1.0f / (4.0f * m_squared * pow(NdotH, 4.0f));
-//        float r2 = (NdotH * NdotH - 1.0f) / (m_squared * NdotH * NdotH);
-//        float D = r1 * exp(r2);
-
-//        // Geometric shadowing
-//        float two_NdotH = 2.0f * NdotH;
-//        float g1 = (two_NdotH * NdotV) / VdotH;
-//        float g2 = (two_NdotH * NdotL) / VdotH;
-//        float G = min(1.0f, min(g1, g2));
-
-//        Rs = (F * D * G) / ((float)M_PI * NdotL * NdotV);
-//    }
-
-//    vec3f specular_color = material.metallic * material.albedo + (1.0f - material.metallic) * vec3f(1.0f);
-//    return material.albedo * vec3f(1.0f) * NdotL + vec3f(1.0f) * specular_color * NdotL * (k + Rs * (1.0f - k));
-//}
 
 #endif

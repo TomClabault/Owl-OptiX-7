@@ -143,7 +143,7 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
                 + ray_gen_data.camera.direction_dy * (prd.random() + pixel_ID.y) / (float)ray_gen_data.frame_buffer_size.y);
     for (int sample = 0; sample < NUM_SAMPLE_PER_PIXEL; sample++)
     {
-        vec3f attenuation = vec3f(1.0f);
+        vec3f ray_attenuation = vec3f(1.0f);
         vec3f ray_color = vec3f(0.0f);
         for (int depth = 0; depth < optixLaunchParams.max_bounces; depth++)
         {
@@ -152,11 +152,11 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
 
             if (prd.scatter.state == ScatterState::BOUNCED)
             {
-                attenuation *= prd.attenuation;
+                ray_attenuation *= prd.attenuation;
 
                 if (depth == 0)
                     ray_color += prd.emissive;
-                ray_color += attenuation ;//* direct_lighting(prd);
+                ray_color += ray_attenuation * direct_lighting(prd);
 
                 ray_origin = prd.scatter.origin;
                 ray_direction = prd.scatter.direction;

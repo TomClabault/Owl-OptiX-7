@@ -296,7 +296,9 @@ void Viewer::setup_denoiser(const vec2i& newSize)
 
     // ------------------------------------------------------------------
     // create the denoiser:
-    OptixDenoiserOptions denoiserOptions = {};
+    OptixDenoiserOptions denoiserOptions;
+    denoiserOptions.guideAlbedo = 1;
+    denoiserOptions.guideNormal = 1;
 
     OPTIX_CHECK(optixDenoiserCreate(owlContextGetOptixContext(m_owl_context, 0) ,OPTIX_DENOISER_MODEL_KIND_LDR,&denoiserOptions,&denoiser));
 
