@@ -133,7 +133,6 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     PerRayData prd;
     prd.random.init(pixel_ID.x * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.x * NUM_SAMPLE_PER_PIXEL,
                     pixel_ID.y * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.y * NUM_SAMPLE_PER_PIXEL);
-    prd.emissive = vec3f(0.0f);
 
     vec3f sum_samples_color = vec3f(0.0f);
     vec3f ray_origin = ray_gen_data.camera.position;
@@ -160,13 +159,14 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
                 //Transforming the normal from world space to view space as this is
                 //required by the denoiser specification
                 primary_hit_normal = normalize(xfmNormal(ray_gen_data.camera.view_matrix, prd.scatter.normal));
+                //primary_hit_normal = normalize(prd.scatter.normal);
 
                 primary_hit_albedo = prd.scatter.albedo;
             }
 
             ray_attenuation *= prd.attenuation;
 
-            //if (depth == 0)
+            if (depth == 0)
                 ray_color += prd.emissive * ray_attenuation;
             ray_color += ray_attenuation * direct_lighting(prd);
 
@@ -174,7 +174,10 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
             ray_direction = prd.scatter.direction;
         }
         else if (prd.scatter.state == ScatterState::MISSED)
+        {
+            ray_color += ray_attenuation * prd.attenuation;
             break;
+        }
     }
     ///// ----- Ray tracing ----- /////
 
@@ -284,7 +287,7 @@ OPTIX_MISS_PROGRAM(miss)()
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::MISSED;
 
-    return;//No skysphere
+    //return;//No skysphere
 
     MissProgData miss_data = getProgramData<MissProgData>();
 

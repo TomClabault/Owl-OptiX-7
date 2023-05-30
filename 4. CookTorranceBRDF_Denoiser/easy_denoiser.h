@@ -24,10 +24,8 @@ private:
     OptixDenoiser m_denoiser = nullptr;
 
     CUDABuffer m_denoised_buffer_float4;
-
     CUDABuffer m_denoiser_scratch;
     CUDABuffer m_denoiser_state;
-    CUDABuffer m_denoiser_intensity;
 
     unsigned int m_buffer_width, m_buffer_height;
 };

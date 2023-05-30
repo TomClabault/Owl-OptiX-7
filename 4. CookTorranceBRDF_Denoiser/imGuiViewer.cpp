@@ -44,9 +44,9 @@ ImGuiViewer::ImGuiViewer()
 
     OWLBuffer obj_indices, obj_vertices, obj_mat_indices, obj_mats;
     EmissiveTrianglesInfo emissive_triangles_info;
-    OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked_double_light.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked_double_light.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
-    //OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     m_emissive_triangles_info = emissive_triangles_info;
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
@@ -62,9 +62,9 @@ ImGuiViewer::ImGuiViewer()
 
     OWLMissProg miss_program = owlMissProgCreate(m_owl, m_module, "miss", sizeof(MissProgData), miss_prog_vars, 1);
 
-    //load_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
-    //OWLTexture skysphere = owlTexture2DCreate(m_owl, OWL_TEXEL_FORMAT_RGBA8, m_skysphere_width, m_skysphere_height, m_skysphere.data());
-    owlMissProgSetTexture(miss_program, "skysphere", nullptr);
+    load_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
+    OWLTexture skysphere = owlTexture2DCreate(m_owl, OWL_TEXEL_FORMAT_RGBA8, m_skysphere_width, m_skysphere_height, m_skysphere.data());
+    owlMissProgSetTexture(miss_program, "skysphere", skysphere);
 
     //Creating the miss program for the shadow rays. This program doesn't have variables or data.
     OWLMissProg shadow_ray_miss_prog = owlMissProgCreate(m_owl, m_module, "shadow_ray_miss", 0, nullptr, 0);
@@ -523,10 +523,7 @@ void ImGuiViewer::update_obj_material()
         || m_obj_material.albedo.x != m_previous_obj_material.albedo.x
         || m_obj_material.albedo.y != m_previous_obj_material.albedo.y
         || m_obj_material.albedo.z != m_previous_obj_material.albedo.z)
-    {
         m_frame_number = 0;
-        update_frame_number();
-    }
 
     m_previous_obj_material = m_obj_material;
 }
@@ -537,7 +534,6 @@ void ImGuiViewer::update_max_bounces()
     if (m_max_bounces != m_previous_max_bounces)
     {
         m_frame_number = 0;
-        update_frame_number();
 
         owlParamsSet1i(m_launch_params, "max_bounces", m_max_bounces);
     }
@@ -549,9 +545,9 @@ void ImGuiViewer::render()
 {
     imgui_render();
 
-    update_frame_number();
     update_obj_material();
     update_max_bounces();
+    update_frame_number();
 
     if (m_sbtDirty)
     {
