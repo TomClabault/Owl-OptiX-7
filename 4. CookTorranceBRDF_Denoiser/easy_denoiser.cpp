@@ -3,27 +3,58 @@
 #include "optix.h"
 #include "vector_types.h"
 
-void EasyDenoiser::denoise_float4_to_uint32(CUDABuffer input_buffer, uint32_t* output, unsigned int frame_number)
+void EasyDenoiser::denoise_float4_to_uint32(CUDABuffer input_buffer, CUDABuffer normal_buffer, CUDABuffer albedo_buffer, uint32_t* output, unsigned int frame_number)
 {
+    //m_denoiser_intensity.resize(sizeof(float));
+
     OptixDenoiserParams denoiserParams;
     denoiserParams.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_ALPHA_AS_AOV;
     denoiserParams.hdrIntensity = (CUdeviceptr)0;// m_denoiser_intensity.d_pointer();
-    denoiserParams.blendFactor = 1.0f / (frame_number / 2.0f);
+    denoiserParams.blendFactor = 1.0f / (frame_number / m_blend_factor);
 
     // -------------------------------------------------------
-    OptixImage2D inputLayer;
-    inputLayer.data = input_buffer.d_pointer();
+    OptixImage2D inputLayer[2];
+    // -------------- Beauty layer -------------- //
+    inputLayer[0].data = input_buffer.d_pointer();
     /// Width of the image (in pixels)
-    inputLayer.width = m_buffer_width;
+    inputLayer[0].width = m_buffer_width;
     /// Height of the image (in pixels)
-    inputLayer.height = m_buffer_height;
+    inputLayer[0].height = m_buffer_height;
     /// Stride between subsequent rows of the image (in bytes).
-    inputLayer.rowStrideInBytes = m_buffer_width * sizeof(float4);
+    inputLayer[0].rowStrideInBytes = m_buffer_width * sizeof(float4);
     /// Stride between subsequent pixels of the image (in bytes).
     /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
-    inputLayer.pixelStrideInBytes = sizeof(float4);
+    inputLayer[0].pixelStrideInBytes = sizeof(float4);
     /// Pixel format.
-    inputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+    inputLayer[0].format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+//    // -------------- Normal layer -------------- //
+//    inputLayer[1].data = normal_buffer.d_pointer();
+//    /// Width of the image (in pixels)
+//    inputLayer[1].width = m_buffer_width;
+//    /// Height of the image (in pixels)
+//    inputLayer[1].height = m_buffer_height;
+//    /// Stride between subsequent rows of the image (in bytes).
+//    inputLayer[1].rowStrideInBytes = m_buffer_width * sizeof(float4);
+//    /// Stride between subsequent pixels of the image (in bytes).
+//    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
+//    inputLayer[1].pixelStrideInBytes = sizeof(float4);
+//    /// Pixel format.
+//    inputLayer[1].format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    // -------------- Albedo layer -------------- //
+    inputLayer[1].data = albedo_buffer.d_pointer();
+    /// Width of the image (in pixels)
+    inputLayer[1].width = m_buffer_width;
+    /// Height of the image (in pixels)
+    inputLayer[1].height = m_buffer_height;
+    /// Stride between subsequent rows of the image (in bytes).
+    inputLayer[1].rowStrideInBytes = m_buffer_width * sizeof(float4);
+    /// Stride between subsequent pixels of the image (in bytes).
+    /// For now, only 0 or the value that corresponds to a dense packing of pixels (no gaps) is supported.
+    inputLayer[1].pixelStrideInBytes = sizeof(float4);
+    /// Pixel format.
+    inputLayer[1].format = OPTIX_PIXEL_FORMAT_FLOAT4;
 
     // -------------------------------------------------------
     OptixImage2D outputLayer;
@@ -40,20 +71,12 @@ void EasyDenoiser::denoise_float4_to_uint32(CUDABuffer input_buffer, uint32_t* o
     /// Pixel format.
     outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
 
-    // -------------------------------------------------------
-//    OPTIX_CHECK(optixDenoiserComputeIntensity
-//                (m_denoiser,
-//                 /*stream*/0,
-//                 &inputLayer,
-//                 (CUdeviceptr)m_denoiser_intensity.d_pointer(),
-//                 (CUdeviceptr)m_denoiser_scratch.d_pointer(),
-//                 m_denoiser_scratch.size()));
-
     OptixDenoiserGuideLayer denoiser_guide_layer = {};
+    denoiser_guide_layer.albedo = inputLayer[1];
 
-    OptixDenoiserLayer denoiserLayer = {};
-    denoiserLayer.input = inputLayer;
-    denoiserLayer.output = outputLayer;
+    OptixDenoiserLayer denoiser_layer = {};
+    denoiser_layer.input = inputLayer[0];
+    denoiser_layer.output = outputLayer;
 
     OPTIX_CHECK(optixDenoiserInvoke(m_denoiser,
                                     /*stream*/0,
@@ -61,7 +84,7 @@ void EasyDenoiser::denoise_float4_to_uint32(CUDABuffer input_buffer, uint32_t* o
                                     m_denoiser_state.d_pointer(),
                                     m_denoiser_state.size(),
                                     &denoiser_guide_layer,
-                                    &denoiserLayer,1,
+                                    &denoiser_layer, 1,
                                     /*inputOffsetX*/0,
                                     /*inputOffsetY*/0,
                                     m_denoiser_scratch.d_pointer(),
@@ -81,6 +104,8 @@ void EasyDenoiser::setup(OWLContext& owl_context, const vec2i& newSize)
     // ------------------------------------------------------------------
     // create the denoiser:
     OptixDenoiserOptions denoiserOptions = {};
+    denoiserOptions.guideNormal = 0;
+    denoiserOptions.guideAlbedo = 1;
 
     OPTIX_CHECK(optixDenoiserCreate(owlContextGetOptixContext(owl_context, 0), OPTIX_DENOISER_MODEL_KIND_LDR, &denoiserOptions, &m_denoiser));
 

@@ -45,7 +45,7 @@ EmissiveTrianglesInfo EmissiveTrianglesUtils::extract_emissive_triangles(std::ve
     primitive_indices_buffer.resize(emissive_triangles_indices.size() * sizeof(int));
     primitive_indices_buffer.upload(emissive_triangles_indices.data(), emissive_triangles_indices.size());
 
-    emissive_triangles_info.triangles_primitive_indices = (int*)primitive_indices_buffer.d_pointer();
+    emissive_triangles_info.emissive_triangles_indices = (int*)primitive_indices_buffer.d_pointer();
     emissive_triangles_info.count = emissive_triangles_indices.size();
     return emissive_triangles_info;
 }

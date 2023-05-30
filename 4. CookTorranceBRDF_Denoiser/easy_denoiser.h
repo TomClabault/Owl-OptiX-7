@@ -14,9 +14,11 @@ public:
     void convert_denoised_to_rgb_uint32(uint32_t* output_uint32);
 
     void denoise_float4(CUDABuffer input, unsigned int frame_number);
-    void denoise_float4_to_uint32(CUDABuffer input, uint32_t* output, unsigned int frame_number);
+    void denoise_float4_to_uint32(CUDABuffer input_buffer, CUDABuffer normal_buffer, CUDABuffer albedo_buffer, uint32_t* output, unsigned int frame_number);
 
     void setup(OWLContext& owl_context, const vec2i& newSize);
+
+    float m_blend_factor = 24.0f;
 
 private:
     OptixDenoiser m_denoiser = nullptr;

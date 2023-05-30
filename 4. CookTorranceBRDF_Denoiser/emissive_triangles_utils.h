@@ -16,7 +16,7 @@ struct EmissiveTrianglesInfo
     SimpleObjMaterial* triangles_materials;
 
     unsigned int count;
-    int* triangles_primitive_indices;
+    int* emissive_triangles_indices;
 };
 
 class EmissiveTrianglesUtils

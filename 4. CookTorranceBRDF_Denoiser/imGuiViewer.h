@@ -127,6 +127,8 @@ private:
 
 private:
     CUDABuffer m_float4_frame_buffer;
+    CUDABuffer m_normal_buffer;
+    CUDABuffer m_albedo_buffer;
     CUDABuffer m_accumulation_buffer;
     unsigned int m_frame_number = 0;
 

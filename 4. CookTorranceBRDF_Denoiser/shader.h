@@ -3,6 +3,7 @@
 
 #include <owl/owl.h>
 #include <owl/common/math/vec.h>
+#include <owl/common/math/AffineSpace.h>
 
 #include "emissive_triangles_utils.h"
 #include "shaderMaterials.h"
@@ -19,6 +20,8 @@ struct LaunchParams
 
     vec3f* accumulation_buffer;
     float4* float4_frame_buffer;
+    float4* normal_buffer;
+    float4* albedo_buffer;
     unsigned int frame_number;
 
     //Max recursion depth of the rays
@@ -43,6 +46,7 @@ struct RayGenData
         vec3f direction_00;
         vec3f direction_dx;
         vec3f direction_dy;
+        AffineSpace3f view_matrix;
     } camera;
 };
 

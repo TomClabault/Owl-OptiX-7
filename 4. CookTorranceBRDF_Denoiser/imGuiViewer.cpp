@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <thread>
+#include <owl/common/math/AffineSpace.h>
 
 extern "C" char shader_ptx[];
 
@@ -27,11 +28,12 @@ ImGuiViewer::ImGuiViewer()
     m_module = owlModuleCreate(m_owl, shader_ptx);
 
     OWLVarDecl rayGenVars[] = {
-        { "frame_buffer_size",    OWL_INT2,           OWL_OFFSETOF(RayGenData, frame_buffer_size) },
-        { "camera.position",      OWL_FLOAT3,         OWL_OFFSETOF(RayGenData, camera.position) },
-        { "camera.direction_00",  OWL_FLOAT3,         OWL_OFFSETOF(RayGenData, camera.direction_00) },
-        { "camera.direction_dx",  OWL_FLOAT3,         OWL_OFFSETOF(RayGenData, camera.direction_dx) },
-        { "camera.direction_dy",  OWL_FLOAT3,         OWL_OFFSETOF(RayGenData, camera.direction_dy) },
+        { "frame_buffer_size",      OWL_INT2,                       OWL_OFFSETOF(RayGenData, frame_buffer_size) },
+        { "camera.position",        OWL_FLOAT3,                     OWL_OFFSETOF(RayGenData, camera.position) },
+        { "camera.direction_00",    OWL_FLOAT3,                     OWL_OFFSETOF(RayGenData, camera.direction_00) },
+        { "camera.direction_dx",    OWL_FLOAT3,                     OWL_OFFSETOF(RayGenData, camera.direction_dx) },
+        { "camera.direction_dy",    OWL_FLOAT3,                     OWL_OFFSETOF(RayGenData, camera.direction_dy) },
+        { "camera.view_matrix",     OWL_USER_TYPE(AffineSpace3f),   OWL_OFFSETOF(RayGenData, camera.view_matrix) },
         { /* sentinel: */ }
     };
 
@@ -42,8 +44,9 @@ ImGuiViewer::ImGuiViewer()
 
     OWLBuffer obj_indices, obj_vertices, obj_mat_indices, obj_mats;
     EmissiveTrianglesInfo emissive_triangles_info;
+    OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked_double_light.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
-    OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     m_emissive_triangles_info = emissive_triangles_info;
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
@@ -71,6 +74,8 @@ ImGuiViewer::ImGuiViewer()
         { "scene",                                               OWL_GROUP,                                  OWL_OFFSETOF(LaunchParams, scene) },
         { "accumulation_buffer",                                 OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, accumulation_buffer) },
         { "float4_frame_buffer",                                 OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, float4_frame_buffer) },
+        { "normal_buffer",                                       OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, normal_buffer) },
+        { "albedo_buffer",                                       OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, albedo_buffer) },
         { "frame_number",                                        OWL_UINT,                                   OWL_OFFSETOF(LaunchParams, frame_number) },
         { "max_bounces",                                         OWL_INT,                                    OWL_OFFSETOF(LaunchParams, max_bounces) },
         { "obj_material",                                        OWL_USER_TYPE(m_obj_material),              OWL_OFFSETOF(LaunchParams, obj_material) },
@@ -84,12 +89,7 @@ ImGuiViewer::ImGuiViewer()
 
     m_launch_params = owlParamsCreate(m_owl, sizeof(LaunchParams), launch_params_vars, -1);
 
-    m_accumulation_buffer.resize(sizeof(vec3f) * fbSize.x * fbSize.y);
-    m_float4_frame_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
-
     owlParamsSetGroup(m_launch_params, "scene", scene);
-    owlParamsSet1ul(m_launch_params, "accumulation_buffer", (uint64_t)m_accumulation_buffer.d_pointer());
-    owlParamsSet1ul(m_launch_params, "float4_frame_buffer", (uint64_t)m_float4_frame_buffer.d_pointer());
     owlParamsSet1ui(m_launch_params, "frame_number", 1);
     owlParamsSet1i(m_launch_params, "max_bounces", m_max_bounces);
     owlParamsSetRaw(m_launch_params, "emissive_triangles_info", &m_emissive_triangles_info);
@@ -194,7 +194,6 @@ OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTriang
     OWLBuffer triangles_normals_indices_buffer = owlDeviceBufferCreate(m_owl,   OWL_INT3, vertex_normals_indices.size(), vertex_normals_indices.data());
     OWLBuffer triangles_materials_buffer = owlDeviceBufferCreate(m_owl,         OWL_USER_TYPE(obj_materials[0]), simple_obj_materials.size(), simple_obj_materials.data());
     OWLBuffer triangles_materials_indices_buffer = owlDeviceBufferCreate(m_owl, OWL_INT, materials_indices.size(), materials_indices.data());
-
 
     m_obj_triangle_geom = owlGeomCreate(m_owl, triangle_geometry_type);
 
@@ -432,6 +431,8 @@ void ImGuiViewer::cameraChanged()
     camera_direction_00 -= 0.5f * camera_dv;
     camera_direction_00 = normalize(camera_direction_00);
 
+    AffineSpace3f camera_view_matrix = AffineSpace3f::lookat(camera.position, camera.getAt(), camera.getUp());
+
     m_frame_number = 0;
 
     owlRayGenSet2i(m_ray_gen, "frame_buffer_size", fbSize.x, fbSize.y);
@@ -439,6 +440,7 @@ void ImGuiViewer::cameraChanged()
     owlRayGenSet3f(m_ray_gen, "camera.direction_00", (const owl3f&)camera_direction_00);
     owlRayGenSet3f(m_ray_gen, "camera.direction_dx", (const owl3f&)camera_du);
     owlRayGenSet3f(m_ray_gen, "camera.direction_dy", (const owl3f&)camera_dv);
+    owlRayGenSetRaw(m_ray_gen, "camera.view_matrix", &camera_view_matrix);
 
     owlParamsSet1ui(m_launch_params, "frame_number", m_frame_number);
 
@@ -451,9 +453,13 @@ void ImGuiViewer::resize(const owl::vec2i& new_size)
 
     m_accumulation_buffer.resize(sizeof(vec3f) * fbSize.x * fbSize.y);
     m_float4_frame_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
+    m_normal_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
+    m_albedo_buffer.resize(sizeof(float4) * fbSize.x * fbSize.y);
 
     owlParamsSet1ul(m_launch_params, "accumulation_buffer", (uint64_t)m_accumulation_buffer.d_pointer());
     owlParamsSet1ul(m_launch_params, "float4_frame_buffer", (uint64_t)m_float4_frame_buffer.d_pointer());
+    owlParamsSet1ul(m_launch_params, "normal_buffer", (uint64_t)m_normal_buffer.d_pointer());
+    owlParamsSet1ul(m_launch_params, "albedo_buffer", (uint64_t)m_albedo_buffer.d_pointer());
 
     m_denoiser.setup(m_owl, fbSize);
 
@@ -488,6 +494,11 @@ void ImGuiViewer::imgui_render()
 
         ImGui::Text("General settings");
         ImGui::SliderInt("Max bounces", &m_max_bounces, 0, 20);
+
+        ImGui::Separator();
+
+        ImGui::Text("OptiX AI Denoiser");
+        ImGui::SliderFloat("Blend factor", &m_denoiser.m_blend_factor, 1.0f, 32.0f);
 
         ImGui::End();
     }
@@ -563,7 +574,7 @@ void ImGuiViewer::render()
     owlLaunch2D(m_ray_gen, fbSize.x, fbSize.y, m_launch_params);
 
     if (m_denoiser_on)
-        m_denoiser.denoise_float4_to_uint32(m_float4_frame_buffer, fbPointer, m_frame_number);
+        m_denoiser.denoise_float4_to_uint32(m_float4_frame_buffer, m_normal_buffer, m_albedo_buffer, fbPointer, m_frame_number);
     else
         cuda_float4_to_uint32((float4*)m_float4_frame_buffer.d_pointer(), fbSize.x, fbSize.y, fbPointer);
 }

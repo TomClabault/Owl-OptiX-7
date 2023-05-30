@@ -36,6 +36,7 @@ struct PerRayData
         vec3f origin;
         vec3f direction;
         vec3f normal;
+        vec3f albedo;
 
         ScatterState state;
     } scatter;
@@ -95,13 +96,11 @@ vec3f inline __device__ ns_scatter(PerRayData& prd, const vec3f& hit_point, cons
 
 vec3f inline __device__ direct_lighting(PerRayData& prd)
 {
-    //We're multiplying a uniform random number [0.0, 1.0] by (nb_emissive_triangles + 1) because
-    //if we don't add +1 here, there's an infinitely small chance that we're going to sample
-    //the very last emissive triangle (this would require the random number to be exactly
-    //1.0 and this is not going to happen).
-    int random_emissive_triangle_index = prd.random() * (optixLaunchParams.emissive_triangles_info.count + 1);
+    int random_emissive_triangle_index = prd.random() * optixLaunchParams.emissive_triangles_info.count;
 
-    const vec3i& triangle_indices = optixLaunchParams.emissive_triangles_info.triangles_indices[random_emissive_triangle_index];
+    int global_triangle_index = optixLaunchParams.emissive_triangles_info.emissive_triangles_indices[random_emissive_triangle_index];
+
+    const vec3i& triangle_indices = optixLaunchParams.emissive_triangles_info.triangles_indices[global_triangle_index];
     const vec3f& triangle_A = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.x];
     const vec3f& triangle_B = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.y];
     const vec3f& triangle_C = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.z];
@@ -116,7 +115,7 @@ vec3f inline __device__ direct_lighting(PerRayData& prd)
     traceRay(optixLaunchParams.scene, shadow_ray, shadow_prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT
                                                                   | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT);
 
-    int triangle_mat_index = optixLaunchParams.emissive_triangles_info.triangles_materials_indices[random_emissive_triangle_index];
+    int triangle_mat_index = optixLaunchParams.emissive_triangles_info.triangles_materials_indices[global_triangle_index];
     vec3f light_color = optixLaunchParams.emissive_triangles_info.triangles_materials[triangle_mat_index].emissive;
     float light_angle = dot(prd.scatter.normal, normalize(point_on_light - shadow_ray_origin));
     return vec3f(!shadow_prd.obstructed) * light_angle * light_color;
@@ -141,34 +140,47 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     vec3f ray_direction = normalize(ray_gen_data.camera.direction_00
                 + ray_gen_data.camera.direction_dx * (prd.random() + pixel_ID.x) / (float)ray_gen_data.frame_buffer_size.x
                 + ray_gen_data.camera.direction_dy * (prd.random() + pixel_ID.y) / (float)ray_gen_data.frame_buffer_size.y);
-    for (int sample = 0; sample < NUM_SAMPLE_PER_PIXEL; sample++)
+
+    ///// ----- Ray tracing ----- /////
+    vec3f primary_hit_normal = vec3f(0.0f);//Used for the denoiser only
+    vec3f primary_hit_albedo = vec3f(0.0f);//Used for the denoiser only
+
+    vec3f ray_attenuation = vec3f(1.0f);
+    vec3f ray_color = vec3f(0.0f);
+    for (int depth = 0; depth < optixLaunchParams.max_bounces; depth++)
     {
-        vec3f ray_attenuation = vec3f(1.0f);
-        vec3f ray_color = vec3f(0.0f);
-        for (int depth = 0; depth < optixLaunchParams.max_bounces; depth++)
+        Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);//Radiance ray
+        traceRay(optixLaunchParams.scene, ray, prd, OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES | OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+        if (prd.scatter.state == ScatterState::BOUNCED)
         {
-            Ray ray(ray_origin, ray_direction, 1.0e-3f, 1.0e10f);//Radiance ray
-            traceRay(optixLaunchParams.scene, ray, prd, OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES | OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-
-            if (prd.scatter.state == ScatterState::BOUNCED)
+            //Only settings the normal for the primary hit --> depth == 0
+            if (depth == 0)
             {
-                ray_attenuation *= prd.attenuation;
+                //Transforming the normal from world space to view space as this is
+                //required by the denoiser specification
+                primary_hit_normal = normalize(xfmNormal(ray_gen_data.camera.view_matrix, prd.scatter.normal));
 
-                if (depth == 0)
-                    ray_color += prd.emissive;
-                ray_color += ray_attenuation * direct_lighting(prd);
-
-                ray_origin = prd.scatter.origin;
-                ray_direction = prd.scatter.direction;
+                primary_hit_albedo = prd.scatter.albedo;
             }
-            else if (prd.scatter.state == ScatterState::MISSED)
-                break;
+
+            ray_attenuation *= prd.attenuation;
+
+            //if (depth == 0)
+                ray_color += prd.emissive * ray_attenuation;
+            ray_color += ray_attenuation * direct_lighting(prd);
+
+            ray_origin = prd.scatter.origin;
+            ray_direction = prd.scatter.direction;
         }
-
-        sum_samples_color += ray_color;
+        else if (prd.scatter.state == ScatterState::MISSED)
+            break;
     }
+    ///// ----- Ray tracing ----- /////
 
-    vec3f averaged_color = sum_samples_color / (float)NUM_SAMPLE_PER_PIXEL;
+    sum_samples_color += ray_color;
+
+    vec3f averaged_color = sum_samples_color;
 
     if (optixLaunchParams.frame_number == 1)
         optixLaunchParams.accumulation_buffer[pixel_index] = vec3f(0.0f);
@@ -180,8 +192,13 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     //Gamma correction will be applied later, after the denoising, when the denoised buffer
     //is converted to a uint32 buffer
     float4 accumulated_color_float4 = make_float4(accumulated_color.x, accumulated_color.y, accumulated_color.z, 1.0f);
+    vec3f primary_hit_normal_clamped = abs(primary_hit_normal);
+    float4 primary_hit_normal_float4 = make_float4(primary_hit_normal_clamped.x, primary_hit_normal_clamped.y, primary_hit_normal_clamped.z, 1.0f);
+    float4 primary_hit_albedo_float4 = make_float4(primary_hit_albedo.x, primary_hit_albedo.y, primary_hit_albedo.z, 1.0f);
 
     optixLaunchParams.float4_frame_buffer[pixel_index] = accumulated_color_float4;
+    optixLaunchParams.normal_buffer[pixel_index] = primary_hit_normal_float4;
+    optixLaunchParams.albedo_buffer[pixel_index] = primary_hit_albedo_float4;
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
@@ -217,6 +234,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     prd.scatter.state = ScatterState::BOUNCED;
 
     prd.scatter.normal = smooth_normal;
+    prd.scatter.albedo = material.albedo;
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(obj_triangle)()
@@ -250,6 +268,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(obj_triangle)()
     prd.scatter.direction = ns_scatter(prd, hit_point, ray_direction, smooth_normal, mat.ns);
     prd.scatter.state = ScatterState::BOUNCED;
     prd.scatter.normal = smooth_normal;
+    prd.scatter.albedo = mat.albedo;
 }
 
 OPTIX_MISS_PROGRAM(shadow_ray_miss)()
