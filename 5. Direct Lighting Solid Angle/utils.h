@@ -24,7 +24,7 @@ public:
      */
     static void read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normal_indices, std::vector<vec2f>& vertex_texcoords, std::vector<vec3i>& vertex_texcoords_indices, std::vector<rapidobj::Material>& materials, std::vector<int>& materials_indices);
 
-    static void read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec2f>& vertex_texcoords, std::vector<vec3i>& vertex_texcoords_indices, std::vector<rapidobj::Material>& materials, std::vector<int>& materials_indices);
+    static void read_obj_with_vertex_normals(const char* filepath, rapidobj::Result& mesh_data, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normals_indices, std::vector<vec2f>& vertex_texcoords, std::vector<vec3i>& vertex_texcoords_indices, std::vector<rapidobj::Material>& materials, std::vector<int>& materials_indices);
 
     static float* read_image( const char *filename, int& width, int& height, const bool flipY);
 

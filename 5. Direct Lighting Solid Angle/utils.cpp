@@ -10,9 +10,9 @@ float angle(const vec3f& vec_a, const vec3f& vec_b)
     return std::acos(dot(normalize(vec_a), normalize(vec_b)));
 }
 
-std::vector<vec3f> compute_smooth_normals(const std::vector<vec3i>& indices, const std::vector<vec3f>& vertices)
+std::vector<vec3f> compute_smooth_normals(rapidobj::Result& mesh_data, const std::vector<vec3i>& indices, const std::vector<vec3f>& vertices)
 {
-    std::vector<vec3f> smooth_normals(vertices.size(), vec3f(0.0f));
+    std::vector<vec3f> smooth_normals;
 
     for (int index = 0; index < indices.size(); index++)
     {
@@ -26,7 +26,8 @@ std::vector<vec3f> compute_smooth_normals(const std::vector<vec3i>& indices, con
         const vec3f B = vertices[index_vertex_B];
         const vec3f C = vertices[index_vertex_C];
 
-        const vec3f face_normal = normalize(cross(B - A, C - A));
+        vec3f crossed = cross(B - A, C - A);
+        const vec3f face_normal = normalize(crossed);
 
         //Smooth normal for Vertex A
         smooth_normals[index_vertex_A] += face_normal * angle(B - A, C - A);
@@ -36,6 +37,9 @@ std::vector<vec3f> compute_smooth_normals(const std::vector<vec3i>& indices, con
 
         //Smooth normal for Vertex C
         smooth_normals[index_vertex_C] += face_normal * angle(A - C, B - C);
+
+        if(std::isnan(smooth_normals[index_vertex_A].x) || std::isnan(smooth_normals[index_vertex_B].x) || std::isnan(smooth_normals[index_vertex_C].x))
+            std::cout << index << std::endl;
     }
 
     for (vec3f& smooth_normal : smooth_normals)
@@ -44,9 +48,9 @@ std::vector<vec3f> compute_smooth_normals(const std::vector<vec3i>& indices, con
     return smooth_normals;
 }
 
-void Utils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec2f>& vertex_texcoords, std::vector<vec3i>& vertex_texcoords_indices, std::vector<rapidobj::Material>& materials, std::vector<int>& materials_indices)
+void Utils::read_obj_with_vertex_normals(const char* filepath, rapidobj::Result& mesh_data, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normals_indices, std::vector<vec2f>& vertex_texcoords, std::vector<vec3i>& vertex_texcoords_indices, std::vector<rapidobj::Material>& materials, std::vector<int>& materials_indices)
 {
-    rapidobj::Result mesh_data = rapidobj::ParseFile(filepath);
+    mesh_data = rapidobj::ParseFile(filepath);
     rapidobj::Triangulate(mesh_data);
 
     if (mesh_data.error.code.value() != 0)
@@ -90,6 +94,14 @@ void Utils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>&
         vertex_texcoords.push_back(vec2f(mesh_texcoords[i + 0],
                                          mesh_texcoords[i + 1]));
 
+    //If the vertex normals of the first shape are available,
+    //we assume they are available for the whole OBJ
+    if (mesh_data.shapes[0].mesh.indices[0].normal_index != -1)
+        for (int i = 0; i < mesh_normals.size(); i += 3)
+            vertex_normals.push_back(vec3f(mesh_normals[i + 0],
+                                           mesh_normals[i + 1],
+                                           mesh_normals[i + 2]));
+
     for (int shape_index = 0; shape_index < mesh_data.shapes.size(); shape_index++)
     {
         const rapidobj::Array<rapidobj::Index>& mesh_indices = mesh_data.shapes[shape_index].mesh.indices;
@@ -104,6 +116,12 @@ void Utils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>&
             vertex_texcoords_indices.push_back(vec3i(mesh_indices[i + 0].texcoord_index,
                                                      mesh_indices[i + 1].texcoord_index,
                                                      mesh_indices[i + 2].texcoord_index));
+
+            //If the vertex normals are available
+            if (mesh_indices[0].normal_index != -1)
+                vertex_normals_indices.push_back(vec3i(mesh_indices[i + 0].normal_index,
+                                                       mesh_indices[i + 1].normal_index,
+                                                       mesh_indices[i + 2].normal_index));
         }
 
         for (int i = 0; i < mesh_materials_indices.size(); i++)
@@ -113,10 +131,16 @@ void Utils::read_obj_no_vertex_normals(const char* filepath, std::vector<vec3i>&
 
 void Utils::read_obj(const char* filepath, std::vector<vec3i>& indices, std::vector<vec3f>& vertices, std::vector<vec3f>& vertex_normals, std::vector<vec3i>& vertex_normal_indices, std::vector<vec2f>& vertex_texcoords, std::vector<vec3i>& vertex_texcoords_indices, std::vector<rapidobj::Material>& materials, std::vector<int>& materials_indices)
 {
-    read_obj_no_vertex_normals(filepath, indices, vertices, vertex_texcoords, vertex_texcoords_indices, materials, materials_indices);
+    rapidobj::Result mesh_data;
+    read_obj_with_vertex_normals(filepath, mesh_data, indices, vertices, vertex_normals, vertex_normal_indices, vertex_texcoords, vertex_texcoords_indices, materials, materials_indices);
 
-    vertex_normals = compute_smooth_normals(indices, vertices);
-    vertex_normal_indices = indices;
+    //No vertex normals were read from the OBJ, we're going to have to compute
+    //them ourselves
+    if (vertex_normals.size() == 0)
+    {
+        vertex_normals = compute_smooth_normals(mesh_data, indices, vertices);
+        vertex_normal_indices = indices;
+    }
 }
 
 float* Utils::read_image( const char *filename, int& width, int& height, const bool flipY)

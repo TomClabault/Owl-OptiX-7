@@ -48,9 +48,9 @@ ImGuiViewer::ImGuiViewer()
     //OWLGroup main_obj = create_obj_group("../../common_data/cornell_blocked_double_light.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/InteriorTest.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
-    //OWLGroup main_obj = create_obj_group("../../common_data/indoor/Namas_x_scaled.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    OWLGroup main_obj = create_obj_group("../../common_data/indoor/Namas_x_scaled.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/indoor2/file.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
-    OWLGroup main_obj = create_obj_group("../../common_data/texture_test/capsule_reexported.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup main_obj = create_obj_group("../../common_data/texture_test/capsule_tri.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/geometry.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     m_emissive_triangles_info = emissive_triangles_info;
 
