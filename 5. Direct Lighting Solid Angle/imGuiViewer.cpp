@@ -527,7 +527,7 @@ void ImGuiViewer::imgui_render()
         ImGui::Separator();
 
         ImGui::Text("General settings");
-        ImGui::SliderInt("Max bounces", &m_max_bounces, 0, 20);
+        ImGui::SliderInt("Max bounces", &m_max_bounces, 0, 64);
 
         ImGui::Separator();
 
