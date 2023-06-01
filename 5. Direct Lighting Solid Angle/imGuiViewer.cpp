@@ -1,3 +1,4 @@
+
 #include "float4ToUint32.h"
 #include "geometriesData.h"
 #include "utils.h"
@@ -39,20 +40,24 @@ ImGuiViewer::ImGuiViewer()
 
     m_ray_gen = owlRayGenCreate(m_owl, m_module, "ray_gen", sizeof(RayGenData), rayGenVars, -1);
 
-    OWLGroup bunny_group = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
-    OWLGroup dragon_group = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
+    //OWLGroup bunny_group = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
+    //OWLGroup dragon_group = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
 
     OWLBuffer obj_indices, obj_vertices, obj_mat_indices, obj_mats;
     EmissiveTrianglesInfo emissive_triangles_info;
-    //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked_double_light.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
-    //OWLGroup cornell_box = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
-    OWLGroup cornell_box = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup main_obj = create_obj_group("../../common_data/cornell_blocked_double_light.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup main_obj = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup main_obj = create_obj_group("../../common_data/InteriorTest.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup main_obj = create_obj_group("../../common_data/indoor/Namas_x_scaled.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup main_obj = create_obj_group("../../common_data/indoor2/file.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    OWLGroup main_obj = create_obj_group("../../common_data/texture_test/capsule_reexported.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup main_obj = create_obj_group("../../common_data/geometry.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     m_emissive_triangles_info = emissive_triangles_info;
 
-    OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
-    owlInstanceGroupSetChild(scene, 0, bunny_group);
-    owlInstanceGroupSetChild(scene, 1, dragon_group);
-    owlInstanceGroupSetChild(scene, 2, cornell_box);
+    OWLGroup scene = owlInstanceGroupCreate(m_owl, 1);
+    //owlInstanceGroupSetChild(scene, 0, bunny_group);
+    //owlInstanceGroupSetChild(scene, 1, dragon_group);
+    owlInstanceGroupSetChild(scene, 0, main_obj);
     owlGroupBuildAccel(scene);
 
     OWLVarDecl miss_prog_vars[] = {
@@ -62,9 +67,10 @@ ImGuiViewer::ImGuiViewer()
 
     OWLMissProg miss_program = owlMissProgCreate(m_owl, m_module, "miss", sizeof(MissProgData), miss_prog_vars, 1);
 
-    //load_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
-    //OWLTexture skysphere = owlTexture2DCreate(m_owl, OWL_TEXEL_FORMAT_RGBA8, m_skysphere_width, m_skysphere_height, m_skysphere.data());
-    owlMissProgSetTexture(miss_program, "skysphere", nullptr);
+    //TODO tester de ne pas mettre la skysphere en membre de la classe
+    load_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
+    OWLTexture skysphere = owlTexture2DCreate(m_owl, OWL_TEXEL_FORMAT_RGBA8, m_skysphere_width, m_skysphere_height, m_skysphere.data());
+    owlMissProgSetTexture(miss_program, "skysphere", skysphere);
 
     //Creating the miss program for the shadow rays. This program doesn't have variables or data.
     OWLMissProg shadow_ray_miss_prog = owlMissProgCreate(m_owl, m_module, "shadow_ray_miss", 0, nullptr, 0);
@@ -77,6 +83,7 @@ ImGuiViewer::ImGuiViewer()
         { "normal_buffer",                                       OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, normal_buffer) },
         { "albedo_buffer",                                       OWL_RAW_POINTER,                            OWL_OFFSETOF(LaunchParams, albedo_buffer) },
         { "frame_number",                                        OWL_UINT,                                   OWL_OFFSETOF(LaunchParams, frame_number) },
+        { "mouse_moving",                                        OWL_BOOL,                                   OWL_OFFSETOF(LaunchParams, mouse_moving) },
         { "max_bounces",                                         OWL_INT,                                    OWL_OFFSETOF(LaunchParams, max_bounces) },
         { "obj_material",                                        OWL_USER_TYPE(m_obj_material),              OWL_OFFSETOF(LaunchParams, obj_material) },
         { "emissive_triangles_info",                             OWL_USER_TYPE(m_emissive_triangles_info),   OWL_OFFSETOF(LaunchParams, emissive_triangles_info) },
@@ -91,6 +98,7 @@ ImGuiViewer::ImGuiViewer()
 
     owlParamsSetGroup(m_launch_params, "scene", scene);
     owlParamsSet1ui(m_launch_params, "frame_number", 1);
+    owlParamsSet1b(m_launch_params, "mouse_moving", m_mouse_moving);
     owlParamsSet1i(m_launch_params, "max_bounces", m_max_bounces);
     owlParamsSetRaw(m_launch_params, "emissive_triangles_info", &m_emissive_triangles_info);
     owlParamsSetBuffer(m_launch_params, "emissive_triangles_info.triangles_indices", obj_indices);
@@ -161,9 +169,15 @@ OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTriang
     std::vector<vec3i> vertex_normals_indices;
     std::vector<rapidobj::Material> obj_materials;
     std::vector<int> materials_indices;
+    std::vector<vec2f> vertex_texcoords;
+    std::vector<vec3i> vertex_texcoords_indices;
 
-    Utils::read_obj(obj_file_path, indices, vertices, vertex_normals, vertex_normals_indices, obj_materials, materials_indices);
+    Utils::read_obj(obj_file_path, indices, vertices, vertex_normals, vertex_normals_indices, vertex_texcoords, vertex_texcoords_indices, obj_materials, materials_indices);
 
+    //This is basically the 'obj_file_path' argument but without the obj file name at the end.
+    //This path ends with a '/'
+    std::string obj_file_path_str = std::string(obj_file_path);
+    std::string path_obj_folder = obj_file_path_str.substr(0,  obj_file_path_str.rfind('/') + 1);
     std::vector<SimpleObjMaterial> simple_obj_materials;
     for (rapidobj::Material& mat : obj_materials)
     {
@@ -171,6 +185,18 @@ OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTriang
         obj_mat.albedo = *((vec3f*)&mat.diffuse);
         obj_mat.emissive = *((vec3f*)&mat.emission);
         obj_mat.ns = mat.shininess;
+
+        //There is a diffuse texture
+        if (mat.diffuse_texname.length() > 0)
+        {
+            int tex_width, tex_height;
+            unsigned char* diffuse_texture_data = Utils::read_image_rgba_4x8((path_obj_folder + mat.diffuse_texname).c_str(), tex_width, tex_height);
+            obj_mat.diffuse_texture = Utils::create_simple_cuda_texture(diffuse_texture_data, tex_width, tex_height);
+
+            stbi_image_free(diffuse_texture_data);
+        }
+        else
+            obj_mat.diffuse_texture = 0;
 
         simple_obj_materials.push_back(obj_mat);
     }
@@ -180,6 +206,8 @@ OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTriang
         { "triangle_data.vertices",                 OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertices)},
         { "triangle_data.vertex_normals",           OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_normals)},
         { "triangle_data.vertex_normals_indices",   OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_normals_indices)},
+        { "triangle_data.vertex_uvs",               OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_uvs)},
+        { "triangle_data.vertex_uvs_indices",       OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, triangle_data.vertex_uvs_indices)},
         { "materials",                              OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, materials)},
         { "materials_indices",                      OWL_BUFPTR, OWL_OFFSETOF(SimpleObjTriangleData, materials_indices)},
         { /* sentinel */ }
@@ -192,7 +220,9 @@ OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTriang
     OWLBuffer triangles_vertices_buffer = owlDeviceBufferCreate(m_owl,          OWL_FLOAT3, vertices.size(), vertices.data());
     OWLBuffer triangles_normals_buffer = owlDeviceBufferCreate(m_owl,           OWL_FLOAT3, vertex_normals.size(), vertex_normals.data());
     OWLBuffer triangles_normals_indices_buffer = owlDeviceBufferCreate(m_owl,   OWL_INT3, vertex_normals_indices.size(), vertex_normals_indices.data());
-    OWLBuffer triangles_materials_buffer = owlDeviceBufferCreate(m_owl,         OWL_USER_TYPE(obj_materials[0]), simple_obj_materials.size(), simple_obj_materials.data());
+    OWLBuffer triangles_uvs_buffer = owlDeviceBufferCreate(m_owl,               OWL_FLOAT2, vertex_texcoords.size(), vertex_texcoords.data());
+    OWLBuffer triangles_uvs_indices_buffer = owlDeviceBufferCreate(m_owl,       OWL_INT3, vertex_texcoords_indices.size(), vertex_texcoords_indices.data());
+    OWLBuffer triangles_materials_buffer = owlDeviceBufferCreate(m_owl,         OWL_USER_TYPE(simple_obj_materials[0]), simple_obj_materials.size(), simple_obj_materials.data());
     OWLBuffer triangles_materials_indices_buffer = owlDeviceBufferCreate(m_owl, OWL_INT, materials_indices.size(), materials_indices.data());
 
     m_obj_triangle_geom = owlGeomCreate(m_owl, triangle_geometry_type);
@@ -204,6 +234,8 @@ OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTriang
     owlGeomSetBuffer(m_obj_triangle_geom, "triangle_data.vertices", triangles_vertices_buffer);
     owlGeomSetBuffer(m_obj_triangle_geom, "triangle_data.vertex_normals", triangles_normals_buffer);
     owlGeomSetBuffer(m_obj_triangle_geom, "triangle_data.vertex_normals_indices", triangles_normals_indices_buffer);
+    owlGeomSetBuffer(m_obj_triangle_geom, "triangle_data.vertex_uvs", triangles_uvs_buffer);
+    owlGeomSetBuffer(m_obj_triangle_geom, "triangle_data.vertex_uvs_indices", triangles_uvs_indices_buffer);
     owlGeomSetBuffer(m_obj_triangle_geom, "materials", triangles_materials_buffer);
     owlGeomSetBuffer(m_obj_triangle_geom, "materials_indices", triangles_materials_indices_buffer);
 
@@ -225,10 +257,12 @@ OWLGroup ImGuiViewer::create_cook_torrance_obj_group(const char* obj_file_path)
     std::vector<vec3f> vertices;
     std::vector<vec3f> vertex_normals;
     std::vector<vec3i> vertex_normals_indices;
+    std::vector<vec2f> vertex_uvs;
+    std::vector<vec3i> vertex_uvs_indices;
     std::vector<rapidobj::Material> obj_materials;
     std::vector<int> materials_indices;
 
-    Utils::read_obj(obj_file_path, indices, vertices, vertex_normals, vertex_normals_indices, obj_materials, materials_indices);
+    Utils::read_obj(obj_file_path, indices, vertices, vertex_normals, vertex_normals_indices, vertex_uvs, vertex_uvs_indices, obj_materials, materials_indices);
 
     std::vector<CookTorranceMaterial> cook_torrance_materials;
     for (rapidobj::Material& mat : obj_materials)
@@ -507,11 +541,6 @@ void ImGuiViewer::imgui_render()
     ImGui::Render();
 }
 
-void ImGuiViewer::update_frame_number()
-{
-    owlParamsSet1ui(m_launch_params, "frame_number", ++m_frame_number);
-}
-
 void ImGuiViewer::update_obj_material()
 {
     owlParamsSetRaw(m_launch_params, "obj_material", &m_obj_material);
@@ -545,9 +574,13 @@ void ImGuiViewer::render()
 {
     imgui_render();
 
-    update_obj_material();
+    owlParamsSet1b(m_launch_params, "mouse_moving", m_mouse_moving);
+    if (m_mouse_moving)
+        m_frame_number = 0;
+
     update_max_bounces();
-    update_frame_number();
+    update_obj_material();
+    owlParamsSet1ui(m_launch_params, "frame_number", ++m_frame_number);
 
     if (m_sbtDirty)
     {
@@ -569,10 +602,10 @@ void ImGuiViewer::render()
 
     owlLaunch2D(m_ray_gen, fbSize.x, fbSize.y, m_launch_params);
 
-    if (m_denoiser_on)
+    if (!m_mouse_moving)
         m_denoiser.denoise_float4_to_uint32(m_float4_frame_buffer, m_normal_buffer, m_albedo_buffer, fbPointer, m_frame_number);
     else
-        cuda_float4_to_uint32((float4*)m_float4_frame_buffer.d_pointer(), fbSize.x, fbSize.y, fbPointer);
+        cuda_float4_to_uint32((float4*)m_normal_buffer.d_pointer(), fbSize.x, fbSize.y, fbPointer);
 }
 
 void ImGuiViewer::draw()
@@ -585,6 +618,6 @@ void ImGuiViewer::draw()
 /**
     * Disabling the denoiser while we're moving the camera
     */
-void ImGuiViewer::mouseButtonLeft(const vec2i &where, bool pressed) { m_denoiser_on = !pressed; }
-void ImGuiViewer::mouseButtonRight(const vec2i& where, bool pressed) { m_denoiser_on = !pressed; }
-void ImGuiViewer::mouseButtonCenter(const vec2i& where, bool pressed) { m_denoiser_on = !pressed; }
+void ImGuiViewer::mouseButtonLeft(const vec2i &where, bool pressed) { m_mouse_moving = pressed; }
+void ImGuiViewer::mouseButtonRight(const vec2i& where, bool pressed) { m_mouse_moving = pressed; }
+void ImGuiViewer::mouseButtonCenter(const vec2i& where, bool pressed) { m_mouse_moving = pressed; }
