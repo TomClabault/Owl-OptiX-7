@@ -1,21 +1,21 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 set (CMAKE_CXX_STANDARD 17)
-project(5_DiffuseTextures LANGUAGES C CXX CUDA)
+project(6_HDR_Pipeline LANGUAGES C CXX CUDA)
 
 set(owl_dir ${PROJECT_SOURCE_DIR}/../owl)
 add_subdirectory(${owl_dir} buildOwl/ EXCLUDE_FROM_ALL)
 
 embed_ptx(
   OUTPUT_TARGET
-    5_DiffuseTextures-ptx
+    6_HDR_Pipeline-ptx
   PTX_LINK_LIBRARIES
     owl::owl
   SOURCES
     shader.cu
 )
 
-add_executable(5_DiffuseTextures main.cpp
+add_executable(6_HDR_Pipeline main.cpp
                                 easy_denoiser.cpp
                                 emissive_triangles_utils.cpp
                                 utils.cpp
@@ -30,10 +30,14 @@ add_executable(5_DiffuseTextures main.cpp
                                 shader.h
                                 shaderMaterials.h
 
-                                float4ToUint32.cu
-                                float4ToUint32.h
+                                tone_mapping.cu
+                                tone_mapping.h
 
                                 rapidobj/rapidobj.hpp
+
+                                tinyexr/tinyexr.h
+                                tinyexr/miniz.h
+                                tinyexr/miniz.c
 
                                 imGuiViewer.h
                                 imGuiViewer.cpp
@@ -48,11 +52,12 @@ add_executable(5_DiffuseTextures main.cpp
                                 ../imgui/backends/imgui_impl_win32.cpp)
 
 include_directories(".")
+include_directories("./tinyexr")
 include_directories("../imgui")
 include_directories("../imgui/backends")
 
-target_link_libraries(5_DiffuseTextures
-    5_DiffuseTextures-ptx
+target_link_libraries(6_HDR_Pipeline
+    6_HDR_Pipeline-ptx
     owl::owl
     owl_viewer
     stb_image

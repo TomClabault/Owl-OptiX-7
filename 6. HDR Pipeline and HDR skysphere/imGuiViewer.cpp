@@ -1,5 +1,4 @@
-
-#include "float4ToUint32.h"
+#include "tone_mapping.h"
 #include "geometriesData.h"
 #include "utils.h"
 #include "shader.h"
@@ -11,6 +10,10 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
+
+#define TINYEXR_USE_OPENMP 1
+#define TINYEXR_IMPLEMENTATION
+#include "tinyexr/tinyexr.h"
 
 #include <chrono>
 #include <thread>
@@ -66,9 +69,8 @@ ImGuiViewer::ImGuiViewer()
 
     OWLMissProg miss_program = owlMissProgCreate(m_owl, m_module, "miss", sizeof(MissProgData), miss_prog_vars, 1);
 
-    //TODO tester de ne pas mettre la skysphere en membre de la classe
-    load_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
-    OWLTexture skysphere = owlTexture2DCreate(m_owl, OWL_TEXEL_FORMAT_RGBA8, m_skysphere_width, m_skysphere_height, m_skysphere.data());
+    //OWLTexture skysphere = create_ldr_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
+    OWLTexture skysphere = create_hdr_skysphere("../../common_data/Villa/textures/hilly_terrain_01_4k.exr");
     owlMissProgSetTexture(miss_program, "skysphere", skysphere);
 
     //Creating the miss program for the shadow rays. This program doesn't have variables or data.
@@ -426,23 +428,56 @@ OWLGroup ImGuiViewer::create_emissive_triangles_group()
     return emissive_group;
 }
 
-void ImGuiViewer::load_skysphere(const char* filepath)
+OWLTexture ImGuiViewer::create_ldr_skysphere(const char* filepath)
 {
-    float* data = Utils::read_image(filepath, m_skysphere_width, m_skysphere_height, true);
+    int width, height;
+    float* data = Utils::read_image(filepath, width, height, true);
 
-    m_skysphere.resize(m_skysphere_width * m_skysphere_height);
+    std::vector<vec4uc> uchar4_skypshere;
+    uchar4_skypshere.reserve(width * height);
 
-    for (int i = 0; i < m_skysphere_width * m_skysphere_height; i++)
+    for (int i = 0; i < width * height; i++)
     {
         vec4uc pixel_val = vec4uc(data[i * 4 + 0] * 255,
                                   data[i * 4 + 1] * 255,
                                   data[i * 4 + 2] * 255,
                                   data[i * 4 + 3] * 255);
 
-        m_skysphere[i] = pixel_val;
+        uchar4_skypshere[i] = pixel_val;
     }
 
+    OWLTexture skysphere_texture = owlTexture2DCreate(m_owl, OWL_TEXEL_FORMAT_RGBA8, width, height, uchar4_skypshere.data());
     stbi_image_free(data);
+
+    return skysphere_texture;
+}
+
+OWLTexture ImGuiViewer::create_hdr_skysphere(const char* path_to_exr)
+{
+    int width;
+    int height;
+
+    float* data; // width * height * RGBA
+
+    const char* err = nullptr;
+
+    int ret = LoadEXR(&data, &width, &height, path_to_exr, &err);
+
+    if (ret != TINYEXR_SUCCESS) {
+        if (err) {
+            fprintf(stderr, "ERR : %s\n", err);
+            FreeEXRErrorMessage(err); // release memory of error message.
+
+        }
+
+        std::exit(0);
+    } else {
+        OWLTexture skysphere_texture = owlTexture2DCreate(m_owl, OWL_TEXEL_FORMAT_RGBA32F, width, height, data);
+
+        free(data); // release memory of image data
+
+        return skysphere_texture;
+    }
 }
 
 ImGuiViewer::~ImGuiViewer()
@@ -494,7 +529,7 @@ void ImGuiViewer::resize(const owl::vec2i& new_size)
     owlParamsSet1ul(m_launch_params, "normal_buffer", (uint64_t)m_normal_buffer.d_pointer());
     owlParamsSet1ul(m_launch_params, "albedo_buffer", (uint64_t)m_albedo_buffer.d_pointer());
 
-    m_denoiser.setup(m_owl, fbSize);
+    m_denoiser.setup_hdr(m_owl, fbSize);
 
     cameraChanged();
 }
@@ -514,6 +549,7 @@ void ImGuiViewer::imgui_render()
 
         ImGui::Begin("Application Settings");
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::Text("Sample count: %d", m_frame_number);
 
         ImGui::Separator();
 
@@ -531,6 +567,7 @@ void ImGuiViewer::imgui_render()
         ImGui::Separator();
 
         ImGui::Text("OptiX AI Denoiser");
+        ImGui::Checkbox("Enable denoiser", &m_denoiser_on);
         ImGui::SliderFloat("Blend factor", &m_denoiser.m_blend_factor, 1.0f, 32.0f);
 
         ImGui::End();
@@ -602,9 +639,21 @@ void ImGuiViewer::render()
     owlLaunch2D(m_ray_gen, fbSize.x, fbSize.y, m_launch_params);
 
     if (!m_mouse_moving)
-        m_denoiser.denoise_float4_to_uint32(m_float4_frame_buffer, m_normal_buffer, m_albedo_buffer, fbPointer, m_frame_number);
+    {
+
+        //We're going to denoise unless the denoiser has been un checked by the user
+        if (m_denoiser_on)
+        {
+            float4* float4_hdr_output;
+
+            m_denoiser.denoise(m_float4_frame_buffer, m_normal_buffer, m_albedo_buffer, &float4_hdr_output, m_frame_number);
+            hdr_tone_mapping(float4_hdr_output, fbSize.x, fbSize.y, fbPointer);
+        }
+        else
+            hdr_tone_mapping((float4*)m_float4_frame_buffer.d_pointer(), fbSize.x, fbSize.y, fbPointer);
+    }
     else
-        cuda_float4_to_uint32((float4*)m_normal_buffer.d_pointer(), fbSize.x, fbSize.y, fbPointer);
+        hdr_tone_mapping((float4*)m_normal_buffer.d_pointer(), fbSize.x, fbSize.y, fbPointer);
 }
 
 void ImGuiViewer::draw()
