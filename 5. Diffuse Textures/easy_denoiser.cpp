@@ -114,8 +114,8 @@ void EasyDenoiser::setup(OWLContext& owl_context, const vec2i& newSize)
     // ------------------------------------------------------------------
     // create the denoiser:
     OptixDenoiserOptions denoiserOptions = {};
-    denoiserOptions.guideNormal = 0;
-    denoiserOptions.guideAlbedo = 0;
+    denoiserOptions.guideNormal = 1;
+    denoiserOptions.guideAlbedo = 1;
 
     OPTIX_CHECK(optixDenoiserCreate(owlContextGetOptixContext(owl_context, 0), OPTIX_DENOISER_MODEL_KIND_LDR, &denoiserOptions, &m_denoiser));
 
