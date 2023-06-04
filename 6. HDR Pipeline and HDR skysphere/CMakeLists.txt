@@ -16,22 +16,22 @@ embed_ptx(
 )
 
 add_executable(6_HDR_Pipeline main.cpp
-                                easy_denoiser.cpp
-                                emissive_triangles_utils.cpp
+                                optiXDenoiserWrapper.cpp
+                                emissiveTrianglesUtils.cpp
                                 utils.cpp
 
                                 cookTorrance.h
                                 cudaBuffer.h
-                                easy_denoiser.h
-                                emissive_triangles_utils.h
+                                optiXDenoiserWrapper.h
+                                emissiveTrianglesUtils.h
                                 geometriesData.h
                                 utils.h
                                 optix7.h
                                 shader.h
                                 shaderMaterials.h
 
-                                tone_mapping.cu
-                                tone_mapping.h
+                                toneMapping.cu
+                                toneMapping.h
 
                                 rapidobj/rapidobj.hpp
 

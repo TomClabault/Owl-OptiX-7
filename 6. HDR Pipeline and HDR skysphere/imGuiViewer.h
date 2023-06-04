@@ -167,7 +167,7 @@ private:
     bool m_mouse_moving = false;
     //Attribute managed by the ImGui checkbox
     bool m_denoiser_on = true;
-    EasyDenoiser m_denoiser;
+    OptiXDenoiserWrapper m_denoiser;
 
     OWLContext m_owl;
     OWLModule m_module;

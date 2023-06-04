@@ -70,7 +70,10 @@ ImGuiViewer::ImGuiViewer()
     OWLMissProg miss_program = owlMissProgCreate(m_owl, m_module, "miss", sizeof(MissProgData), miss_prog_vars, 1);
 
     //OWLTexture skysphere = create_ldr_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
-    OWLTexture skysphere = create_hdr_skysphere("../../common_data/Villa/textures/hilly_terrain_01_4k.exr");
+    OWLTexture skysphere = create_hdr_skysphere("../../common_data/Villa/textures/hilly_terrain_01_1k.exr");
+    //OWLTexture skysphere = create_hdr_skysphere("../../common_data/HDRIs/OutdoorHDRI024_1K-HDR.exr");
+    //OWLTexture skysphere = create_hdr_skysphere("../../common_data/HDRIs/christmas_photo_studio_01_1k.exr");
+    //OWLTexture skysphere = create_hdr_skysphere("../../common_data/HDRIs/moonless_golf_1k.exr");
     owlMissProgSetTexture(miss_program, "skysphere", skysphere);
 
     //Creating the miss program for the shadow rays. This program doesn't have variables or data.

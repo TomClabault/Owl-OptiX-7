@@ -419,6 +419,9 @@ OPTIX_MISS_PROGRAM(miss)()
 
     prd.emissive = skysphere_color;
     prd.scatter.state = ScatterState::MISSED;
+#if HDR
+    //prd.emissive = clamp(prd.emissive, vec3f(0.0f), vec3f(200.0f));
+#endif
 #else
     prd.attenuation = vec3f(0.0f);
     prd.emissive = vec3f(0.0f);
