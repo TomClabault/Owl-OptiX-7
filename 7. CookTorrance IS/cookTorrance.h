@@ -1,6 +1,7 @@
 #ifndef COOK_TORRANCE_H
 #define COOK_TORRANCE_H
 
+#include "shader.h"
 #include "shaderMaterials.h"
 
 #include <owl/common/math/vec.h>
@@ -29,12 +30,25 @@ inline float __device__ G1_GGX_schlick(float dot, float k)
     return dot / max((dot * (1.0f - k) + k), 0.0001f);
 }
 
+inline float __device__ G2_Smith(float NoL, float NoV, float alpha)
+{
+    float NoL2 = NoL * NoL;
+    float NoV2 = NoV * NoV;
+
+    float numerator = 2 * NoL *NoV;
+    float denom = NoV * sqrtf(alpha + (1.0f - alpha) * NoL2)
+                + NoL * sqrtf(alpha + (1.0f - alpha) * NoV2);
+
+    return numerator / max(denom, 0.0001f);
+}
+
 inline float __device__ g_smith(float NdotV, float NdotL, float roughness)
 {
     float alpha = roughness * roughness;
     float k = alpha * 0.5f;
 
-    return G1_GGX_schlick(NdotL, k) * G1_GGX_schlick(NdotV, k);
+    //return G1_GGX_schlick(NdotL, k) * G1_GGX_schlick(NdotV, k);
+    return G2_Smith(NdotL, NdotV, alpha);
 }
 
 inline vec3f __device__ cook_torrance_brdf(const CookTorranceMaterial& material, const vec3f& view_dir, const vec3f& outgoing_light_dir, const vec3f& normal)
@@ -71,6 +85,11 @@ inline vec3f __device__ cook_torrance_brdf(const CookTorranceMaterial& material,
     diffuse_term *= vec3f(1.0f) - fresnel_term;
 
     return specular_term + diffuse_term;
+}
+
+inline vec3f __device__ cook_torrance_sample_direction(PerRayData& prd, float& pdf)
+{
+
 }
 
 #endif

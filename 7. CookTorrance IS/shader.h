@@ -6,6 +6,7 @@
 #include <owl/common/math/AffineSpace.h>
 
 #include "emissiveTrianglesUtils.h"
+#include "owl/common/math/random.h"
 #include "shaderMaterials.h"
 #include "texture_types.h"
 
@@ -36,6 +37,34 @@ struct LaunchParams
     //Information about the emissives triangles of the scene (how many,
     //indices, vertices, ...). Used for direct lighting in the ray_gen program
     EmissiveTrianglesInfo emissive_triangles_info;
+};
+
+enum ScatterState
+{
+    BOUNCED,
+    EMITTED,
+    MISSED,
+    TERMINATED
+};
+
+struct PerRayData
+{
+    vec3f attenuation;
+    vec3f emissive;
+
+    struct
+    {
+        vec3f origin;
+        vec3f direction;
+        vec3f normal;
+        vec3f albedo;
+        float pdf;
+
+        ScatterState state;
+
+    } scatter;
+
+    owl::common::LCG<4> random;
 };
 
 struct RayGenData
