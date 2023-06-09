@@ -43,24 +43,27 @@ ImGuiViewer::ImGuiViewer()
 
     m_ray_gen = owlRayGenCreate(m_owl, m_module, "ray_gen", sizeof(RayGenData), rayGenVars, -1);
 
-    OWLGroup bunny_group = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
-    OWLGroup dragon_group = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
+    //OWLGroup first_cook_torrance = create_cook_torrance_obj_group("../../common_data/bunny_for_cornell.obj");
+    OWLGroup first_cook_torrance = create_cook_torrance_obj_group("../../common_data/sphere_for_cornell.obj");
+    OWLGroup second_cook_torrance = create_cook_torrance_obj_group("../../common_data/dragon_for_cornell.obj");
 
     OWLBuffer obj_indices, obj_vertices, obj_mat_indices, obj_mats;
     EmissiveTrianglesInfo emissive_triangles_info;
     //OWLGroup main_obj = create_obj_group("../../common_data/cornell_blocked_double_light.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/cornell_blocked.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     OWLGroup main_obj = create_obj_group("../../common_data/cornell-box.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
+    //OWLGroup main_obj = create_obj_group("../../common_data/conference/conference.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/InteriorTest.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/indoor/Namas_x_scaled.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/villa/CG Villa Scene Packed.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     //OWLGroup main_obj = create_obj_group("../../common_data/geometry.obj", emissive_triangles_info, &obj_indices, &obj_vertices, &obj_mat_indices, &obj_mats);
     m_emissive_triangles_info = emissive_triangles_info;
+    //OWLGroup second_obj = create_obj_group("../../common_data/burger_texture/burger.obj");
 
     OWLGroup scene = owlInstanceGroupCreate(m_owl, 3);
-    owlInstanceGroupSetChild(scene, 0, bunny_group);
-    owlInstanceGroupSetChild(scene, 1, dragon_group);
-    owlInstanceGroupSetChild(scene, 2, main_obj);
+    owlInstanceGroupSetChild(scene, 0, main_obj);
+    owlInstanceGroupSetChild(scene, 1, first_cook_torrance);
+    owlInstanceGroupSetChild(scene, 2, second_cook_torrance);
     owlGroupBuildAccel(scene);
 
     OWLVarDecl miss_prog_vars[] = {
@@ -70,9 +73,9 @@ ImGuiViewer::ImGuiViewer()
 
     OWLMissProg miss_program = owlMissProgCreate(m_owl, m_module, "miss", sizeof(MissProgData), miss_prog_vars, 1);
 
-    OWLTexture skysphere = create_ldr_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
+    //OWLTexture skysphere = create_ldr_skysphere("../../common_data/industrial_sunset_puresky_bright.png");
     //OWLTexture skysphere = create_hdr_skysphere("../../common_data/Villa/textures/hilly_terrain_01_1k.exr");
-    //OWLTexture skysphere = create_hdr_skysphere("../../common_data/HDRIs/OutdoorHDRI024_1K-HDR.exr");
+    OWLTexture skysphere = create_hdr_skysphere("../../common_data/HDRIs/OutdoorHDRI024_1K-HDR.exr");
     //OWLTexture skysphere = create_hdr_skysphere("../../common_data/HDRIs/christmas_photo_studio_01_1k.exr");
     //OWLTexture skysphere = create_hdr_skysphere("../../common_data/HDRIs/moonless_golf_1k.exr");
     owlMissProgSetTexture(miss_program, "skysphere", skysphere);
@@ -164,6 +167,14 @@ void ImGuiViewer::setupImGUI()
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(viewer::OWLViewer::handle, true);
     ImGui_ImplOpenGL3_Init("#version 130");
+}
+
+OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path)
+{
+    EmissiveTrianglesInfo trash_emissive;
+    OWLBuffer trash_buffer;
+
+    return create_obj_group(obj_file_path, trash_emissive, &trash_buffer, &trash_buffer, &trash_buffer, &trash_buffer);
 }
 
 OWLGroup ImGuiViewer::create_obj_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices, OWLBuffer* triangles_materials_indices, OWLBuffer* triangles_materials)
@@ -280,7 +291,12 @@ OWLGroup ImGuiViewer::create_cook_torrance_obj_group(const char* obj_file_path)
 
         cook_torrance_materials.push_back(cook_torrance_mat);
     }
-    m_obj_material = cook_torrance_materials[0];
+
+    //The OBJ file loaded may not have any material
+    if (cook_torrance_materials.size() > 0)
+        m_obj_material = cook_torrance_materials[0];
+    else
+        m_obj_material = CookTorranceMaterial {vec3f(0.8f), 0.5f, 0.5f, 0.5f};
 
     OWLVarDecl triangle_geometry_vars[] = {
         { "triangle_data.indices",                  OWL_BUFPTR, OWL_OFFSETOF(CookTorranceTriangleData, triangle_data.indices)},

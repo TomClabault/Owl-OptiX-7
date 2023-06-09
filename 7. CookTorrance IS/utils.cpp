@@ -209,7 +209,7 @@ cudaTextureObject_t Utils::create_simple_cuda_texture(unsigned char* data, int w
     tex_desc.minMipmapLevelClamp = 0;
     tex_desc.mipmapFilterMode    = cudaFilterModePoint;
     tex_desc.borderColor[0]      = 1.0f;
-    tex_desc.sRGB                = 0;
+    tex_desc.sRGB                = 1;
 
     // Create texture object
     cudaTextureObject_t cuda_tex = 0;

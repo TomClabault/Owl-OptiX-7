@@ -7,9 +7,7 @@
 #include "optix_device.h"
 #include "shader.h"
 
-#define NUM_SAMPLE_PER_PIXEL 1
-
-#define ENABLE_SKYBOX 1
+#define ENABLE_SKYBOX 0
 #define HDR 1
 
 using namespace owl;
@@ -70,84 +68,6 @@ vec3f inline __device__ ns_scatter(PerRayData& prd, const vec3f& hit_point, cons
 
 vec3f inline __device__ direct_lighting(PerRayData& prd)
 {
-//    float solid_angle_sum = 0.0f;
-//    for (int i = 0; i < optixLaunchParams.emissive_triangles_info.count; i++)
-//    {
-//        int global_triangle_index = optixLaunchParams.emissive_triangles_info.emissive_triangles_indices[i];
-
-//        vec3i& indices = optixLaunchParams.emissive_triangles_info.triangles_indices[global_triangle_index];
-
-//        vec3f& A = optixLaunchParams.emissive_triangles_info.triangles_vertices[indices.x];
-//        vec3f& B = optixLaunchParams.emissive_triangles_info.triangles_vertices[indices.y];
-//        vec3f& C = optixLaunchParams.emissive_triangles_info.triangles_vertices[indices.z];
-
-//        vec3f norm_A = normalize(A);
-//        vec3f norm_B = normalize(B);
-//        vec3f norm_C = normalize(C);
-
-//        vec3f AB = norm_B - norm_A;
-//        vec3f BC = norm_C - norm_B;
-//        vec3f CA = norm_A - norm_C;
-
-//        float solid_angle = dot(AB, -CA) + dot(BC, -AB) + dot(CA, -BC) - (float)M_PI;
-//        solid_angle_sum += solid_angle;
-//    }
-
-//    int global_triangle_index_chosen;
-//    float random_01 = prd.random();
-//    float sum_so_far = 0.0f;
-//    for (int i = 0; i < optixLaunchParams.emissive_triangles_info.count; i++)
-//    {
-//        int global_triangle_index = optixLaunchParams.emissive_triangles_info.emissive_triangles_indices[i];
-
-//        vec3i& indices = optixLaunchParams.emissive_triangles_info.triangles_indices[global_triangle_index];
-
-//        vec3f& A = optixLaunchParams.emissive_triangles_info.triangles_vertices[indices.x];
-//        vec3f& B = optixLaunchParams.emissive_triangles_info.triangles_vertices[indices.y];
-//        vec3f& C = optixLaunchParams.emissive_triangles_info.triangles_vertices[indices.z];
-
-//        vec3f norm_A = normalize(A);
-//        vec3f norm_B = normalize(B);
-//        vec3f norm_C = normalize(C);
-
-//        vec3f AB = norm_B - norm_A;
-//        vec3f BC = norm_C - norm_B;
-//        vec3f CA = norm_A - norm_C;
-
-//        float solid_angle = dot(AB, -CA) + dot(BC, -AB) + dot(CA, -BC) - (float)M_PI;
-//        solid_angle /= solid_angle_sum;//Normalized
-
-//        sum_so_far += solid_angle;
-
-//        if (sum_so_far > random_01)
-//        {
-//            global_triangle_index_chosen = global_triangle_index;
-//            pdf = 1.0f / solid_angle;
-
-//            break;
-//        }
-//    }
-
-//    const vec3i& triangle_indices = optixLaunchParams.emissive_triangles_info.triangles_indices[global_triangle_index_chosen];
-//    const vec3f& triangle_A = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.x];
-//    const vec3f& triangle_B = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.y];
-//    const vec3f& triangle_C = optixLaunchParams.emissive_triangles_info.triangles_vertices[triangle_indices.z];
-
-//    vec3f point_on_light = uniform_point_on_triangle(prd, triangle_A, triangle_B, triangle_C);
-//    vec3f shadow_ray_origin = prd.scatter.origin;
-//    vec3f light_direction = normalize(point_on_light - prd.scatter.origin);
-
-//    float dist = length(point_on_light - prd.scatter.origin);
-//    ShadowRay shadow_ray(prd.scatter.origin, normalize(point_on_light - shadow_ray_origin), 1.0e-3f, dist -1.0e-4f);
-//    ShadowRayPrd shadow_prd;
-//    traceRay(optixLaunchParams.scene, shadow_ray, shadow_prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT
-//                                                                  | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT);
-
-//    int triangle_mat_index = optixLaunchParams.emissive_triangles_info.triangles_materials_indices[global_triangle_index_chosen];
-//    vec3f light_color = optixLaunchParams.emissive_triangles_info.triangles_materials[triangle_mat_index].emissive;
-//    float light_angle = dot(prd.scatter.normal, normalize(point_on_light - shadow_ray_origin));
-//    return vec3f(!shadow_prd.obstructed) * light_angle * light_color;
-
     int random_emissive_triangle_index = prd.random() * optixLaunchParams.emissive_triangles_info.count;
 
     int global_triangle_index = optixLaunchParams.emissive_triangles_info.emissive_triangles_indices[random_emissive_triangle_index];
@@ -165,12 +85,16 @@ vec3f inline __device__ direct_lighting(PerRayData& prd)
     ShadowRay shadow_ray(prd.scatter.origin, normalize(point_on_light - shadow_ray_origin), 1.0e-3f, dist -1.0e-4f);
     ShadowRayPrd shadow_prd;
     traceRay(optixLaunchParams.scene, shadow_ray, shadow_prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT
-                                                                  | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT);
+                                                            | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT);
 
     int triangle_mat_index = optixLaunchParams.emissive_triangles_info.triangles_materials_indices[global_triangle_index];
     vec3f light_color = optixLaunchParams.emissive_triangles_info.triangles_materials[triangle_mat_index].emissive;
-    float light_angle = max(0.0f, dot(prd.scatter.normal, normalize(point_on_light - shadow_ray_origin)));
-    return vec3f(!shadow_prd.obstructed) * light_angle * light_color;
+    float surface_normal_angle = max(0.0f, dot(prd.scatter.normal, normalize(point_on_light - shadow_ray_origin)));
+
+    if (dist * dist < 0.00001f)
+        return vec3f(0.0f);
+    else
+        return vec3f(!shadow_prd.obstructed) * surface_normal_angle * light_color * 1.0f / (dist * dist);
 }
 
 OPTIX_RAYGEN_PROGRAM(ray_gen)()
@@ -183,8 +107,8 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
     const SimpleObjTriangleData& lambertian_triangle_data = getProgramData<SimpleObjTriangleData>();
 
     PerRayData prd;
-    prd.random.init(pixel_ID.x * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.x * NUM_SAMPLE_PER_PIXEL,
-                    pixel_ID.y * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.y * NUM_SAMPLE_PER_PIXEL);
+    prd.random.init(pixel_ID.x * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.x,
+                    pixel_ID.y * optixLaunchParams.frame_number * ray_gen_data.frame_buffer_size.y);
 
     vec3f ray_origin = ray_gen_data.camera.position;
     vec3f ray_direction = normalize(ray_gen_data.camera.direction_00
@@ -215,13 +139,8 @@ OPTIX_RAYGEN_PROGRAM(ray_gen)()
                 primary_hit_albedo = prd.scatter.albedo;
             }
 
-
             if (depth == 0)
                 ray_color += prd.emissive;
-            //else //We allow emissive when there has been a specular bounce. If the bounce
-                //was specular, 'specular_intensity' will not be vec3f(0.0f) and the emissive
-                //will be accounted for
-                //ray_color += prd.emissive * prd.scatter.specular_intensity;
 
             ray_throughput *= prd.attenuation;
 
@@ -274,8 +193,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     vec3f normal_b = triangle_data.triangle_data.vertex_normals[normal_indices.y];
     vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
     vec3f smooth_normal = normalize(u * normal_b
-                                    + v * normal_c
-                                    + (1 - u - v) * normal_a);
+                                  + v * normal_c
+                                  + (1 - u - v) * normal_a);
 
     CookTorranceMaterial material = optixLaunchParams.obj_material;
 
@@ -286,15 +205,18 @@ OPTIX_CLOSEST_HIT_PROGRAM(cook_torrance_obj_triangle)()
     vec3f hit_point = ray_origin + hit_t * ray_direction;
 
     prd.scatter.origin = hit_point + smooth_normal * 1.0e-5f;
-    prd.scatter.direction = roughness_scatter(prd, hit_point, ray_direction, smooth_normal, material.roughness);
-    //prd.scatter.direction =  cook_torrance_sample_direction(prd, hit_point, ray_direction, material, prd.scatter.pdf);
-    prd.attenuation = cook_torrance_brdf(material, -normalize(ray_direction), prd.scatter.direction, smooth_normal);
+    float pdf;
+    prd.scatter.direction = random_in_hemisphere(prd, smooth_normal);
+    //prd.scatter.direction = cook_torrance_sample_direction(prd, -ray_direction, smooth_normal, material.roughness, pdf);
+//    if (pdf < 0.00001f)
+//        prd.attenuation = 0.0f;
+    //else
+        prd.attenuation = cook_torrance_brdf(material, -ray_direction, prd.scatter.direction, smooth_normal);
     prd.emissive = vec3f(0.0f);
     prd.scatter.state = ScatterState::BOUNCED;
 
     prd.scatter.normal = smooth_normal;
     prd.scatter.albedo = material.albedo;
-    //prd.scatter.specular_intensity = prd.attenuation;
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(obj_triangle)()
@@ -318,15 +240,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(obj_triangle)()
     vec3f normal_a = triangle_data.triangle_data.vertex_normals[normal_indices.x];
     vec3f normal_b = triangle_data.triangle_data.vertex_normals[normal_indices.y];
     vec3f normal_c = triangle_data.triangle_data.vertex_normals[normal_indices.z];
-
-    //DEBUG
-//    vec2i index = getLaunchIndex();
-//    if (index.x == 0 && index.y == 0)
-//    {
-//        printf("Normal a: %f %f %f\n", normal_a.x, normal_a.y, normal_a.z);
-//        printf("Normal b: %f %f %f\n", normal_b.x, normal_b.y, normal_b.z);
-//        printf("Normal c: %f %f %f\n\n", normal_c.x, normal_c.y, normal_c.z);
-//    }
 
     vec3f smooth_normal = normalize(u * normal_b
                                   + v * normal_c
@@ -364,6 +277,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(obj_triangle)()
 OPTIX_MISS_PROGRAM(shadow_ray_miss)()
 {
     ShadowRayPrd& prd = getPRD<ShadowRayPrd>();
+
     prd.obstructed = false;
 }
 

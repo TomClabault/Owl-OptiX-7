@@ -58,7 +58,6 @@ struct PerRayData
         vec3f direction;
         vec3f normal;
         vec3f albedo;
-        float pdf;
 
         ScatterState state;
 

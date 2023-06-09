@@ -44,6 +44,7 @@ public:
     OWLTexture create_ldr_skysphere(const char* filepath);
     OWLTexture create_hdr_skysphere(const char* path_to_exr);
 
+    OWLGroup create_obj_group(const char* obj_file_path);
     OWLGroup create_obj_group(const char* obj_file_path, EmissiveTrianglesInfo& emissive_triangles, OWLBuffer* triangles_indices, OWLBuffer* triangles_vertices, OWLBuffer* triangles_materials_indices, OWLBuffer* triangles_materials);
     OWLGroup create_cook_torrance_obj_group(const char* obj_file_path);
     OWLGroup create_floor_group();
